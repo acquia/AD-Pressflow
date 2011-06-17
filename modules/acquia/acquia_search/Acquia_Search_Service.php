@@ -1,5 +1,6 @@
 <?php
 // $Id$
+
 include_once './' . drupal_get_path('module', 'apachesolr') . '/Drupal_Apache_Solr_Service.php';
 include_once './' . drupal_get_path('module', 'acquia_agent') . '/acquia_agent_streams.inc';
 

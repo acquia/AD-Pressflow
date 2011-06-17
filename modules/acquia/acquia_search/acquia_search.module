@@ -6,7 +6,7 @@
  *   Integration between Acquia Drupal and Acquia's hosted solr search service.
  */
 
-define('ACQUIA_SEARCH_VERSION', "1.x-6.x-1.5553");
+define('ACQUIA_SEARCH_VERSION', "6.x-1.5577");
 
 /**
  * Implementation of hook_enable().
@@ -97,14 +97,31 @@ function acquia_search_form_apachesolr_settings_alter(&$form, $form_state) {
  * Implementation of hook_form_[form_id]_alter().
  */
 function acquia_search_form_acquia_agent_settings_form_alter(&$form, $form_state) {
-  $form['buttons']['submit']['#submit'][] = 'acquia_search_settings_submit';
-  $form['buttons']['delete']['#submit'][] = 'acquia_search_settings_submit';
+  if (isset($form['cs'])) {
+    $form['cs']['buttons']['submit']['#submit'][] = 'acquia_search_settings_submit';
+    $form['cs']['buttons']['delete']['#submit'][] = 'acquia_search_settings_submit';
+  }
+  else {
+    // Older versions had a different form array.
+    $form['buttons']['submit']['#submit'][] = 'acquia_search_settings_submit';
+    $form['buttons']['delete']['#submit'][] = 'acquia_search_settings_submit';
+  }
 }
+
+/**
+ * Implementation of hook_flush_caches().
+ */
+function acquia_search_flush_caches() {
+  // Make sure our settings are correct.
+  acquia_search_settings_submit();
+  return array();
+}
+
 
 /**
  * Added submit function for acquia_agent_settings and apachesolr_settings forms.
  */
-function acquia_search_settings_submit($form, &$form_state) {
+function acquia_search_settings_submit() {
   if (acquia_agent_subscription_is_active()) {
     _acquia_search_set_variables();
   }
