@@ -4,11 +4,11 @@ package = Acquia Network Connector
 php = 5.0
 core = 6.x
 
-; Information added by drupal.org packaging script on 2011-05-19
-version = "6.x-1.11"
+; Information added by drupal.org packaging script on 2011-11-28
+version = "6.x-2.0"
 core = "6.x"
 project = "acquia_connector"
-datestamp = "1305826614"
+datestamp = "1322490337"
 
 
 ; Information added by Acquia.com packaging script

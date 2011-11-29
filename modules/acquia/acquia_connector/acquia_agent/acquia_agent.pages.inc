@@ -501,9 +501,10 @@ function acquia_agent_settings_form_page($banner = NULL) {
 function acquia_agent_settings_form($form_state, $banner) {
   $identifier = acquia_agent_settings('acquia_identifier');
   $key = acquia_agent_settings('acquia_key');
+  $acquia_network_address = acquia_agent_settings('acquia_network_address');
 
   // Help for copying the identifier and key.
-  $copy_help = t('Copy from <a href="@subscriptions-overview">your subscriptions overview on the Acquia Network</a>.', array('@subscriptions-overview' => 'http://network.acquia.com/network/dashboard/subscription'));
+  $copy_help = t('Copy from <a href="@subscriptions-overview">your subscriptions overview on the Acquia Network</a>.', array('@subscriptions-overview' => 'http://acquia.com/network/dashboard/subscription'));
 
   $form['cs'] = array(
     '#type' => 'fieldset',
@@ -526,19 +527,19 @@ function acquia_agent_settings_form($form_state, $banner) {
     '#description' => $copy_help,
     '#required' => TRUE,
   );
-
   $form['cs']['buttons']['submit'] = array(
     '#type' => 'submit',
-    '#value' => t('Save keys'),
+    '#value' => t('Save Settings'),
     '#validate' => array('acquia_agent_set_validate'),
     '#submit' => array('acquia_agent_set_submit'),
   );
   $form['cs']['buttons']['delete'] = array(
     '#type' => 'submit',
-    '#value' => t('Clear keys'),
+    '#value' => t('Clear Settings'),
     '#access' => (!empty($identifier) || !empty($key)),
     '#submit' => array('acquia_agent_delete_submit'),
   );
+
   $ssl_available = (in_array('ssl', stream_get_transports(), TRUE) && !defined('ACQUIA_DEVELOPMENT_NOSSL'));
 
   $form['ssl'] = array(
@@ -564,7 +565,7 @@ function acquia_agent_settings_form($form_state, $banner) {
     );
   }
   else {
-    $form['ssl']['acquia_agent_verify_peer']['#description'] .= ' <div class="error">'. t('PHP does not have SSL support.') .'</div>';
+    $form['ssl']['acquia_agent_verify_peer']['#description'] .= ' <div class="error">'. t('Your installation of PHP does not have SSL support. Please enable the SSL extension or compile PHP with SSL, see: <a href="http://php.net/manual/en/book.openssl.php" target="_blank">http://php.net/manual/en/book.openssl.php</a>.') .'</div>';
   }
   $form['banner'] = array('#value' => $banner);
   $form['#theme'] = 'acquia_agent_banner_form';
@@ -579,6 +580,7 @@ function acquia_agent_ssl_submit($form, &$form_state) {
   drupal_set_message(t('The configuration options have been saved.'));
 }
 
+
 /**
  * Validate acquia_agent_settings form submissions.
  */
@@ -589,10 +591,11 @@ function acquia_agent_set_validate($form, &$form_state) {
   }
   $identifier = $form_state['values']['acquia_identifier'];
   $key = $form_state['values']['acquia_key'];
+  $acquia_network_address = $form_state['values']['acquia_network_address'];
 
   // Don't make the XML-RPC call with empty values.
-  if (!empty($identifier) && !empty($key)) {
-    if (!acquia_agent_valid_credentials($identifier, $key)) {
+  if (!empty($identifier) && !empty($key) && !empty($rpc_server)) {
+    if (!acquia_agent_valid_credentials($identifier, $key, $acquia_network_address)) {
       $error_message = acquia_agent_connection_error_message();
       form_error($form, $error_message);
     }
@@ -637,29 +640,29 @@ function theme_acquia_agent_banner_form($form) {
   $output .= drupal_render($form);
   $output .= "\n</div>\n";
   $output .= '<div class="an-pg-banner" id="'. $form['#id'] .'-banner">';
-  $output .= '<a href="http://acquia.com/products-services/acquia-network" target="_blank">'. $banner . '</a>';
+  $output .= '<a href="http://www.acquia.com/trial" target="_blank">'. $banner . '</a>';
   $output .= "\n</div>\n</div>\n";
   return $output;
 }
 
 function acquia_agent_an_info_header() {
-	$l_opt = array('attributes' => array('target' => '_blank'));
-  $output = '<h2 id="an-info-header">'.t('With the <a href="@acquia-network" target="_blank">Acquia Network</a> you get:', array('@acquia-network' => 'http://acquia.com/products-services/acquia-network')).'</h2>';
+  $l_opt = array('attributes' => array('target' => '_blank'));
+  $output = '<h2 id="an-info-header">' . t('With the <a href="@acquia-network" target="_blank">Acquia Network</a> you get:', array('@acquia-network' => 'http://acquia.com/products-services/acquia-network')) . '</h2>';
   $output .= '<div id="an-info-box">';
   $output .=   '<div class="cell an-left">';
-  $output .=     '<h2>'. t('Drupal support') .'</h2>';
-  $output .=     t('Get expert advice for tough Drupal questions.');
-  $output .=     '<br/>' .l(t('Learn more'), 'http://acquia.com/drupal-support', $l_opt);
+  $output .=     '<h2>' . t('Knowledge Library') . '</h2>';
+  $output .=     t("Get access to the Acquia Library's articles, videos, and podcasts covering expert tips and tricks, help and how-tos.");
+  $output .=     '<br/>' . l(t('Learn more'), 'http://library.acquia.com/', $l_opt);
   $output .=   '</div>';
   $output .=   '<div class="cell an-center">';
-  $output .=     '<h2>'. t('Acquia Search') .'</h2>';
-  $output .=     t('Add faceted search and content recommendations.');
-  $output .=     '<br/>'. l(t('Learn more'), 'http://acquia.com/products-services/acquia-search', $l_opt);
+  $output .=     '<h2>' . t('Tools and Services') . '</h2>';
+  $output .=     t('Sit back while Insight inspects your site for security, performance, SEO, and best practices. Leverage services for faceted search, automated load testing, spam blocking, A/B site testing, performance tuning, training videos, and more!');
+  $output .=     '<br/>' . l(t('Learn more'), 'http://www.acquia.com/products-services/acquia-network/cloud-services', $l_opt);
   $output .=   '</div>';
   $output .=   '<div class="cell an-right">';
-  $output .=     '<h2>'. t('Mollom') .'</h2>';
-  $output .=     t('Add automated spam blocking for all user generated content.');
-  $output .=     '<br/>'. l(t('Learn more'), 'http://acquia.com/documentation/getting-started/acquia-network-services/mollom', $l_opt);
+  $output .=     '<h2>' . t('Expert Support') . '</h2>';
+  $output .=     t("Get advice for even the toughest Drupal questions from Acquia's Drupal experts.");
+  $output .=     '<br/>' . l(t('Learn more'), 'http://www.acquia.com/drupal-support', $l_opt);
   $output .=   '</div>';
   $output .= '</div>';
   return $output;
@@ -904,3 +907,5 @@ function _acquia_agent_countries() {
     'Zimbabwe' => 'Zimbabwe',
   );
 };
+
+

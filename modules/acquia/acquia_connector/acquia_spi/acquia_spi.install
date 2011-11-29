@@ -14,3 +14,29 @@ function acquia_spi_uninstall() {
   variable_del('acquia_spi_cron_last');
   variable_del('acquia_spi_cron_interval');
 }
+
+/**
+ * Implementation of hook_requirements().
+ */
+function acquia_spi_requirements($phase) {
+
+  $requirements = array();
+  $has_credentials = acquia_agent_has_credentials();
+  $last_sent = variable_get('acquia_spi_cron_last', 0);
+  $id = variable_get('acquia_identifier', '');
+
+  switch ($phase) {
+    case 'runtime':
+      if ($has_credentials) {
+        $requirements['acquia_spi'] = array(
+          'title' => t('Acquia Network SPI'),
+          'severity' => REQUIREMENT_OK,
+          'value' => t('Last sent !time ago', array('!time' => format_interval(time() - $last_sent))),
+          'description' => t('You can <a href="!spi-send">manually send SPI data</a>.', array('!spi-send' => url('admin/settings/acquia-agent/spi-send', array('query' => drupal_get_destination())))),
+        );
+      }
+      break;
+  }
+
+  return $requirements;
+}
