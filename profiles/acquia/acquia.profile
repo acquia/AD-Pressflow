@@ -12,7 +12,7 @@ function acquia_profile_modules() {
     // Default Drupal modules.
     'color', 'comment', 'help', 'menu', 'taxonomy', 'dblog',
     // Acquia modules.
-    'acquia_spi', 'acquia_agent',
+    'acquia_agent', 'acquia_spi',
     // Contributed modules
     'admin_menu'
   );
