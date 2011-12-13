@@ -23,52 +23,6 @@ function acquia_spi_help($path, $arg) {
 }
 
 /**
- * Implementation of hook_xmlrpc().
- */
-function acquia_spi_xmlrpc() {
-  return array(
-    array(
-      'acquia.nspi.send.module.data',
-      'acquia_spi_send_module_data',
-      array('string', 'array'),
-      t('Send file data for the provided path.')),
-    );
-}
-
-/**
- * Send a file's contents to the requestor
- * 
- */
-function acquia_spi_send_module_data($file = array()) {
-  // We only do this if we are on SSL
-  $via_ssl = $_SERVER['HTTPS'] ? TRUE : FALSE;
-  if (variable_get('acquia_spi_ssl_override', FALSE)) {
-    $via_ssl = TRUE;
-  }
-
-  // If our checks pass muster, then we'll provide this data.
-  if (acquia_agent_has_credentials() && $via_ssl) {
-    // If the file variable is set and if the user has allowed file diffing.
-    if (isset($file) && variable_get('acquia_spi_module_diff_data', 1)) {
-      $document_root = getcwd();
-      $file_path = realpath($document_root . '/' . $file);
-      // Be sure the file being requested is within the webroot and is not any
-      // settings.php file.
-      if (is_file($file_path) && strpos($file_path, $document_root) === 0 && strpos($file_path, 'settings.php') === FALSE) {
-        $file_contents = file_get_contents($file_path);
-        header("Expires: Mon, 26 Jul 1997 05:00:00 GMT");
-        header("Content-Type:text");
-        header("Cache-Control: no-cache");
-        header("Pragma: no-cache");
-        return $file_contents;
-      }
-    }
-  }
-
-  return FALSE;
-}
-
-/**
  * Implementation of hook_cron().
  */
 function acquia_spi_cron() {
@@ -86,7 +40,7 @@ function acquia_spi_cron() {
   
   // Determine if the required interval has passed.
   $now = time();
-  if ($now - $last > ($interval * 60)) {
+  if (variable_get('acquia_spi_use_cron', 1) && $now - $last > ($interval * 60)) {
     $ret = acquia_spi_send_profile_info();
   }
 }
@@ -99,37 +53,97 @@ function acquia_spi_menu() {
     'title' => 'Acquia SPI Send',
     'description' => 'Send SPI data to Acquia Network.',
     'page callback' => '_acquia_spi_send',
-    'access callback' => array('_acquia_spi_send_access'),
-  );
-  $items['admin/settings/acquia-agent/spi-send'] = array(
-    'title' => 'Acquia SPI Send',
-    'description' => 'Send SPI data to Acquia Network.',
-    'page callback' => '_acquia_spi_send',
-    'access arguments' => array('administer site configuration'),
+    'access callback' => '_acquia_spi_send_access',
   );
 
   return $items;
 }
 
 /**
- * Access callback check for NSPI independent cron.
+ * Access callback check for SPI send independent call.
  */
 function _acquia_spi_send_access() {
-  $id = variable_get('acquia_identifier', '');
-  if (empty($id) || (!isset($_GET['key']) && !drupal_valid_token($_GET['key'], $id . '-spi-send'))) {
+  $acquia_key = acquia_agent_settings('acquia_key');
+  if (!empty($acquia_key) && isset($_GET['key'])) {
+    $key = md5($acquia_key . '-spi-send-' . drupal_get_private_key());
+    if ($key == $_GET['key']) {
+      return TRUE;
+    }
+  }
+  return FALSE;
+}
+
+/**
+ * Callback for sending SPI data.
+ */
+function _acquia_spi_send() {
+  acquia_spi_send_profile_info();
+  if (isset($_GET['destination'])) {
+    drupal_set_message(t('SPI data sent.'));
+    drupal_goto();
+  }
+  // If destination was not sent the call is via cron so close request and exit.
+  module_invoke_all('exit');
+  print '';
+  exit;
+}
+
+/**
+ * Implementation of hook_xmlrpc().
+ */
+function acquia_spi_xmlrpc() {
+  return array(
+    array(
+      'acquia.nspi.send.module.data',
+      'acquia_spi_send_module_data',
+      array('string', 'array'),
+      t('Send file data for the provided path.')
+    ),
+  );
+}
+
+function acquia_spi_valid_request($data, $message) {
+  $key = acquia_agent_settings('acquia_key');
+  if (!isset($data['authenticator']) || !isset($data['authenticator']['time']) || !isset($data['authenticator']['nonce'])) {
     return FALSE;
   }
-  else {
+  $string = $data['authenticator']['time'] .':'. $data['authenticator']['nonce'] .':' . $message;
+  $hash = sha1((str_pad($key, 64, chr(0x00)) ^ (str_repeat(chr(0x5c), 64))) . pack("H*", sha1((str_pad($key, 64, chr(0x00)) ^ (str_repeat(chr(0x36), 64))) . $string)));
+  if ($hash == $data['authenticator']['hash']) {
     return TRUE;
+  }
+  else {
+    return FALSE;
   }
 }
 
-function _acquia_spi_send() {
-  acquia_spi_send_profile_info();
-  if (arg(0) == 'admin') {
-    drupal_goto();
+/**
+ * Send a file's contents to the requestor
+ */
+function acquia_spi_send_module_data($data = array()) {
+  // We only do this if we are on SSL
+  $via_ssl = isset($_SERVER['HTTPS']) ? TRUE : FALSE;
+  if (variable_get('acquia_spi_module_diff_data', 1) && $via_ssl
+      && acquia_agent_has_credentials() && isset($data['body']['file'])
+      && acquia_spi_valid_request($data, $data['body']['file'])) {
+    // If our checks pass muster, then we'll provide this data.
+    // If the file variable is set and if the user has allowed file diffing.
+    $file = $data['body']['file'];
+    $document_root = getcwd();
+    $file_path = realpath($document_root . '/' . $file);
+    // Be sure the file being requested is within the webroot and is not any
+    // settings.php file.
+    if (is_file($file_path) && strpos($file_path, $document_root) === 0 && strpos($file_path, 'settings.php') === FALSE) {
+      $file_contents = file_get_contents($file_path);
+      header("Expires: Mon, 26 Jul 1997 05:00:00 GMT");
+      header("Content-Type:text");  
+      header("Cache-Control: no-cache");
+      header("Pragma: no-cache");
+      return $file_contents;
+    }
   }
-  return '';
+
+  return FALSE;
 }
 
 /**
@@ -149,8 +163,8 @@ function acquia_spi_form_acquia_agent_settings_form_alter(&$form) {
     '#type' => 'radios',
     '#title' => t('Allow Acquia to request source code from your site so that it can create diffs and patch files for core and module changes.'),
     '#default_value' => variable_get('acquia_spi_module_diff_data',1),
-    '#options' => array(0=>'No',1=>'Yes'),
-    '#description' => 'The Acquia site profile information system can detect if your Drupal source code (core or contrib) has been altered at all. If you select \'Yes\' then it will also create a diff and patch file of the changes for you to review. NOTE: This will only work if you enable SSL security below.',
+    '#options' => array(0 => 'No', 1 => 'Yes'),
+    '#description' => 'The Acquia site profile information system can detect if your Drupal source code (core or contrib) has been altered at all. If you select \'Yes\' then it will also create a diff and patch file of the changes for you to review. NOTE: This will only work if you enable SSL security below and if your site allows outside requests.',
   );
   $form['spi']['module_diff_data'] = array(
     '#type' => 'radios',
@@ -180,6 +194,22 @@ function acquia_spi_form_acquia_agent_settings_form_alter(&$form) {
     '#options' => array(0=>'No',1=>'Yes'),
     '#description' => 'Enabling this setting will allow the Acquia site profile information system to send critical watchdog alerts, failed logins, and 404s to the Acquia Network. This information is used in generating dashboards for your review as well as optionally sending you alerts if certain thresholds are crossed.',
   );
+  $use_cron = variable_get('acquia_spi_use_cron', 1);
+  $form['spi']['spi_use_cron'] = array(
+    '#type' => 'radios',
+    '#title' => t('Send via Drupal cron'),
+    '#default_value' => $use_cron,
+    '#options' => array(0 => 'No', 1 => 'Yes'),
+    '#description' => t('Send SPI data to the Acquia Network during Drupal\'s internal cron system. This is recommended for all sites unless you notice cron run fails.'),
+  );
+  if (!$use_cron) {
+    $key = md5(acquia_agent_settings('acquia_key') . '-spi-send-' . drupal_get_private_key());
+    $url = url('system/acquia-spi-send', array('query' => array('key' => $key), 'absolute' => TRUE));
+    $form['spi']['spi_use_cron_url'] = array(
+      '#type' => 'markup',
+      '#value' => t('<p>Enter the following URL in your server\'s crontab:<br/><em>!url</em></p>', array('!url' => $url)),
+    );
+  }
 
   $form['spi']['buttons']['submit'] = array(
     '#type' => 'submit',
@@ -198,6 +228,7 @@ function acquia_agent_spi_set_submit($form, &$form_state) {
   variable_set('acquia_spi_admin_priv', $form_state['values']['admin_priv']);
   variable_set('acquia_spi_send_node_user', $form_state['values']['send_node_user']);
   variable_set('acquia_spi_send_watchdog', $form_state['values']['send_watchdog']);
+  variable_set('acquia_spi_use_cron', $form_state['values']['spi_use_cron']);
   drupal_set_message(t('The Acquia configuration options have been saved.'));
 }
 
@@ -299,6 +330,11 @@ function acquia_spi_get() {
  * Run some checks from the Security Review module.
  */
 function acquia_spi_run_security_review() {
+  if (!_acquia_spi_security_review_compatible()) {
+    // Older versions of Security Review are not compatible and the results
+    // cannot easily be retrieved.
+    return array();
+  }
   include_once('security_review.inc');
 
   $checklist_results = array();
@@ -338,6 +374,22 @@ function acquia_spi_run_security_review() {
     }
   }
   return $checklist_results;
+}
+
+/**
+ * Helper function checks for conflict with full Security Review module.
+ */
+function _acquia_spi_security_review_compatible() {
+  if (module_exists('security_review')) {
+    if (file_exists(drupal_get_path('module', 'security_review'). 'security_review.inc')) {
+      // Versions with the separate .inc file are compatible.
+      return TRUE;
+    }
+    else {
+      return FALSE;
+    }
+  }
+  return TRUE;
 }
 
 /**
@@ -396,8 +448,6 @@ function acquia_spi_get_version_info() {
 function acquia_spi_check_login() {
   $login_safe = 0;
   if (module_exists('securepages')) {
-    $pages = variable_get('securepages_pages', '');
-    $ignore = variable_get('securepages_ignore', '');
 
     if (drupal_match_path('user/login', variable_get('securepages_pages', ''))) { 
       $login_safe = 1; 
@@ -405,7 +455,7 @@ function acquia_spi_check_login() {
     if (drupal_match_path('user/login', variable_get('securepages_ignore', ''))) { 
       $login_safe = 0; 
     }
-    if (!variable_get('securepages_secure', FALSE) || !!variable_get('securepages_enable', FALSE)) { 
+    if (!variable_get('securepages_secure', FALSE) || !variable_get('securepages_enable', FALSE)) { 
       $login_safe = 0; 
     }
     
@@ -519,7 +569,7 @@ function acquai_spi_get_last_nodes() {
  *
  */
 function acquai_spi_get_watchdog_size() {
-  if(module_exists('dblog')) {
+  if (module_exists('dblog')) {
     return db_result(db_query('SELECT COUNT(*) as num FROM {watchdog}'));
   }
 }
@@ -534,11 +584,14 @@ function acquai_spi_get_watchdog_size() {
  *
  */
 function acquia_spi_get_watchdog_data() {
-  $sql = "SELECT wid, severity, type, message, timestamp FROM {watchdog} WHERE severity IN (0,2) AND timestamp > UNIX_TIMESTAMP() - 3600";
-  $res = db_query($sql);
   $wd = array();
-  while($row = db_fetch_array($res)) {
-    $wd[$row['severity']] = $row;
+  if (module_exists('dblog')) {
+    $sql = "SELECT wid, severity, type, message, timestamp FROM {watchdog} WHERE severity IN (0,2) AND timestamp > UNIX_TIMESTAMP() - 3600";
+    $res = db_query($sql);
+    
+    while($row = db_fetch_array($res)) {
+      $wd[$row['severity']] = $row;
+    }
   }
   return $wd;
 }
@@ -554,18 +607,18 @@ function acquia_spi_get_watchdog_data() {
 function acquai_spi_get_404s() {
   $data = array();
   $row = 0;
-  
-  $results = db_query_range('SELECT message, hostname, referer, timestamp FROM {watchdog} WHERE type = "page not found" AND timestamp > UNIX_TIMESTAMP()-3600 AND message NOT IN("UPGRADE.txt", "MAINTAINERS.txt", "README.txt", "INSTALL.pgsql.txt", "INSTALL.txt", "LICENSE.txt", "INSTALL.mysql.txt", "COPYRIGHT.txt", "CHANGELOG.txt") ORDER BY timestamp DESC', 0, 10);
-  
-  while ($result = db_fetch_array($results)) {
-    $data[$row]['message'] = $result['message'];
-    $data[$row]['hostname'] = $result['hostname'];
-    $data[$row]['referer'] = $result['referer'];
-    $data[$row]['timestamp'] = $result['timestamp'];
-    
-    $row++;
+  if (module_exists('dblog')) {
+    $results = db_query_range('SELECT message, hostname, referer, timestamp FROM {watchdog} WHERE type = "page not found" AND timestamp > UNIX_TIMESTAMP()-3600 AND message NOT IN("UPGRADE.txt", "MAINTAINERS.txt", "README.txt", "INSTALL.pgsql.txt", "INSTALL.txt", "LICENSE.txt", "INSTALL.mysql.txt", "COPYRIGHT.txt", "CHANGELOG.txt") ORDER BY timestamp DESC', 0, 10);
+
+    while ($result = db_fetch_array($results)) {
+      $data[$row]['message'] = $result['message'];
+      $data[$row]['hostname'] = $result['hostname'];
+      $data[$row]['referer'] = $result['referer'];
+      $data[$row]['timestamp'] = $result['timestamp'];
+      $row++;
+    }
   }
-  
+
   return $data;
 }
 
@@ -610,16 +663,16 @@ function _acquia_spi_json($var) {
  *
  */
 function acquia_spi_get_failed_logins() {
-
-  $cron_interval = variable_get('acquia_spi_cron_interval', 8*60*60);
-
-  $query = 'SELECT message, variables, timestamp FROM {watchdog} WHERE message LIKE "login attempt failed%" AND now()-timestamp > %s ORDER BY timestamp DESC';
-  $results = db_query($query,$cron_interval);
   $last_logins = array();
+  $cron_interval = variable_get('acquia_spi_cron_interval', 8*60*60);
+  if (module_exists('dblog')) {
+    $query = 'SELECT message, variables, timestamp FROM {watchdog} WHERE message LIKE "login attempt failed%" AND now()-timestamp > %s ORDER BY timestamp DESC';
+    $results = db_query($query,$cron_interval);
 
-  while ($result = db_fetch_array($results)) {
-    $variables = unserialize($result['variables']);
-    $last_logins['failed'][$result['timestamp']] = $variables['%user'];
+    while ($result = db_fetch_array($results)) {
+      $variables = unserialize($result['variables']);
+      $last_logins['failed'][$result['timestamp']] = $variables['%user'];
+    }
   }
   return $last_logins;
 }
@@ -630,14 +683,14 @@ function acquia_spi_get_failed_logins() {
  * @return boolean
  */
 function acquia_spi_get_super_name() {
-   $return = null;
-   $sql = "SELECT name from {users} WHERE uid = 1 AND (name LIKE '%admin%' OR name LIKE '%root%') LIMIT 1";
-   $result = db_result(db_query($sql));
-   if ($result) {
-     return TRUE;
-   } else {
-     return FALSE;
-   }
+  $sql = "SELECT name from {users} WHERE uid = 1 AND (name LIKE '%admin%' OR name LIKE '%root%') LIMIT 1";
+  $result = db_result(db_query($sql));
+  if ($result) {
+    return TRUE;
+  }
+  else {
+    return FALSE;
+  }
 }
 
 /**
@@ -649,21 +702,20 @@ function acquia_spi_get_super_name() {
  *
  */
 function acquia_spi_get_admin_count() {
-   $count = null;
-   $sql = "SELECT COUNT(DISTINCT u.uid) as count
-              FROM {users} u, {users_roles} ur, {permission} p
-              WHERE u.uid = ur.uid
-                AND ur.rid = p.rid
-                AND u.status = 1
-                AND (p.perm LIKE '%administer permissions%' OR p.perm LIKE '%administer users%')";
-   // get the list of superuser perms from drupal.org
-   $result = db_query($sql);
-   while ($r = db_fetch_array($result)) {
-      $count = $r['count'];
-      break;
-   }
+  $count = NULL;
+  $sql = "SELECT COUNT(DISTINCT u.uid) as count
+             FROM {users} u, {users_roles} ur, {permission} p
+             WHERE u.uid = ur.uid
+               AND ur.rid = p.rid
+               AND u.status = 1
+               AND (p.perm LIKE '%administer permissions%' OR p.perm LIKE '%administer users%')";
+  $result = db_query($sql);
+  while ($r = db_fetch_array($result)) {
+    $count = $r['count'];
+    break;
+  }
 
-   return is_numeric($count) ? $count : null;
+  return is_numeric($count) ? $count : NULL;
 }
 
 /**
@@ -789,9 +841,6 @@ function acquia_spi_get_platform_mysql_data() {
       case 'Qcache_not_cached':
         $ret['Qcache_not_cached'] = $row['Value'];
         break;
-
-
-
     }
   }
   return $ret;
@@ -1016,4 +1065,3 @@ function acquia_spi_hash_path($path = '') {
   }
   return $hash;
 }
-
