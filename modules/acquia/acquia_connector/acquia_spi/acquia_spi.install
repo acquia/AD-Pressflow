@@ -51,10 +51,16 @@ function acquia_spi_requirements($phase) {
           $description .= 'SPI data will be sent once every !interval minutes once cron is called. ';
         }
         $description .= 'You can <a href="!spi-send">manually send SPI data</a>.';
+        if ($last_sent == 0) {
+          $value = t('SPI data has not been sent');
+        }
+        else {
+          $value = t('Last sent !time ago', array('!time' => format_interval($ago)));
+        }
         $requirements['acquia_spi'] = array(
           'title' => t('Acquia Network SPI'),
           'severity' => $severity,
-          'value' => t('Last sent !time ago', array('!time' => format_interval($ago))),
+          'value' => $value,
           'description' => t($description, array('!interval' => $interval, '!config-page' => $config_url, '!spi-send' => url('system/acquia-spi-send', array('query' => array('destination' => 'admin/reports/status', 'key' => $key))))),
         );
       }

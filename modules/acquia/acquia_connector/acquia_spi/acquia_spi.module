@@ -150,74 +150,57 @@ function acquia_spi_send_module_data($data = array()) {
  * Implementation of hook_form_[form_id]_alter().
  */
 function acquia_spi_form_acquia_agent_settings_form_alter(&$form) {
-  $subscription = acquia_agent_settings('acquia_subscription_data');
+  $identifier = acquia_agent_settings('acquia_identifier');
+  $key = acquia_agent_settings('acquia_key');
+  if (empty($identifier) && empty($key)) {
+    return;
+  }
 
-  $form['spi'] = array(
-    '#type' => 'fieldset',
-    '#title' => t('Acquia Network Site Profile Information'),
-    '#collapsible' => FALSE,
-    '#collapsed' => FALSE,
+  $ssl_available = (in_array('ssl', stream_get_transports(), TRUE) && !defined('ACQUIA_DEVELOPMENT_NOSSL'));
+  $form['connection']['#description'] = t('Allow collection and examination of the following items. <a href="!url">Learn more</a>.', array('!url' => url('admin/help/acquia_agent')));
+  
+  $form['connection']['spi'] = array(
+    '#prefix' => '<div class="acquia-spi">',
+    '#suffix' => '</div>',
+    '#weight' => -1,
   );
-
-  $form['spi']['module_diff_data'] = array(
-    '#type' => 'radios',
-    '#title' => t('Allow Acquia to request source code from your site so that it can create diffs and patch files for core and module changes.'),
-    '#default_value' => variable_get('acquia_spi_module_diff_data',1),
-    '#options' => array(0 => 'No', 1 => 'Yes'),
-    '#description' => 'The Acquia site profile information system can detect if your Drupal source code (core or contrib) has been altered at all. If you select \'Yes\' then it will also create a diff and patch file of the changes for you to review. NOTE: This will only work if you enable SSL security below and if your site allows outside requests.',
+  $form['connection']['spi']['admin_priv'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Admin privileges'),
+    '#default_value' => variable_get('acquia_spi_admin_priv', 1),
   );
-  $form['spi']['module_diff_data'] = array(
-    '#type' => 'radios',
-    '#title' => t('Allow source code examination'),
-    '#default_value' => variable_get('acquia_spi_module_diff_data',1),
-    '#options' => array(0=>'No',1=>'Yes'),
-    '#description' => 'The Acquia site profile information system can detect if your Drupal source code (core or contrib) has been altered at all. If you select \'Yes\' then it will also create a diff and patch file of the changes for you to review. NOTE: This will only work if you enable SSL security below.',
+  $form['connection']['spi']['send_node_user'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Nodes and users'),
+    '#default_value' => variable_get('acquia_spi_send_node_user', 1),
   );
-  $form['spi']['admin_priv'] = array(
-    '#type' => 'radios',
-    '#title' => t('Allow admin privileges examination'),
-    '#default_value' => variable_get('acquia_spi_admin_priv',1),
-    '#options' => array(0=>'No',1=>'Yes'),
-    '#description' => 'Enabling this setting will allow the Acquia site profile information system to examine your admin accounts and alert you if you have weakened admin settings.',
+  $form['connection']['spi']['send_watchdog'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Watchdog logs'),
+    '#default_value' => variable_get('acquia_spi_send_watchdog', 1),
   );
-  $form['spi']['send_node_user'] = array(
-    '#type' => 'radios',
-    '#title' => t('Send node and user information'),
-    '#default_value' => variable_get('acquia_spi_send_node_user',1),
-    '#options' => array(0=>'No',1=>'Yes'),
-    '#description' => 'Enabling this setting will allow the Acquia site profile information system to send the latest node information (titles, types and creation time) as well as latest user information (account names, emails and creation times) to the network. This information is used in presenting you with dashboards showing your site activity.',
-  );
-  $form['spi']['send_watchdog'] = array(
-    '#type' => 'radios',
-    '#title' => t('Send watchdog information'),
-    '#default_value' => variable_get('acquia_spi_send_watchdog',1),
-    '#options' => array(0=>'No',1=>'Yes'),
-    '#description' => 'Enabling this setting will allow the Acquia site profile information system to send critical watchdog alerts, failed logins, and 404s to the Acquia Network. This information is used in generating dashboards for your review as well as optionally sending you alerts if certain thresholds are crossed.',
+  $form['connection']['spi']['module_diff_data'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Source code'),
+    '#default_value' => (int) variable_get('acquia_spi_module_diff_data', 1) && $ssl_available,
+    '#description' => t('Source code analysis requires a SSL connection and for your site to be publicly accessible. <a href="!url">Learn more.</a>', array('!url' => url('admin/help/acquia_agent'))),
+    '#disabled' => !$ssl_available,
   );
   $use_cron = variable_get('acquia_spi_use_cron', 1);
-  $form['spi']['spi_use_cron'] = array(
-    '#type' => 'radios',
+  $form['connection']['spi_use_cron'] = array(
+    '#type' => 'checkbox',
     '#title' => t('Send via Drupal cron'),
     '#default_value' => $use_cron,
-    '#options' => array(0 => 'No', 1 => 'Yes'),
-    '#description' => t('Send SPI data to the Acquia Network during Drupal\'s internal cron system. This is recommended for all sites unless you notice cron run fails.'),
   );
   if (!$use_cron) {
     $key = md5(acquia_agent_settings('acquia_key') . '-spi-send-' . drupal_get_private_key());
     $url = url('system/acquia-spi-send', array('query' => array('key' => $key), 'absolute' => TRUE));
-    $form['spi']['spi_use_cron_url'] = array(
-      '#type' => 'markup',
-      '#value' => t('<p>Enter the following URL in your server\'s crontab:<br/><em>!url</em></p>', array('!url' => $url)),
+    $form['connection']['spi_use_cron_url'] = array(
+      '#value'  => t('<p>Enter the following URL in your server\'s crontab to send SPI data:<br/><em>!url</em></p>', array('!url' => $url)),
     );
   }
 
-  $form['spi']['buttons']['submit'] = array(
-    '#type' => 'submit',
-    '#value' => t('Save settings'),
-    '#submit' => array('acquia_agent_spi_set_submit'),
-  );
-
-  $form['buttons']['submit']['#submit'][] = 'acquia_spi_agent_settings_submit';
+  $form['actions']['submit']['#submit'][] = 'acquia_agent_spi_set_submit';
 }
 
 /*
@@ -335,7 +318,9 @@ function acquia_spi_run_security_review() {
     // cannot easily be retrieved.
     return array();
   }
-  include_once('security_review.inc');
+  if (!function_exists('security_review_run')) {
+    module_load_include('inc', 'acquia_spi', 'security_review');
+  }
 
   $checklist_results = array();
   if (function_exists('security_review_get_checks')) {
@@ -424,15 +409,25 @@ function acquia_spi_get_version_info() {
       $ver['pr']['version'] = trim(file_get_contents($press_version_file));
     }
   }
-
-  // Determine if we are looking at Open Atrium
-  if (is_dir($install_root.'/profiles/openatrium')) {
+  // Determine if this is Open Atrium
+  elseif (is_dir($install_root . '/profiles/openatrium')) {
     $ver['distribution']  = 'Open Atrium';
+    $version_file = $install_root . 'profiles/openatrium/VERSION.txt';
+    if (is_file($version_file)) {
+      $ver['oa']['version'] = trim(file_get_contents($version_file));
+    }
   }
-
-  // Determine if we are looking at Drupal Commons
-  if (is_dir($install_root.'/profiles/commons')) {
-    $ver['distribution']  = 'Drupal Commons';
+  // Determine if this is Commons
+  elseif (is_dir($install_root . '/profiles/commons')) {
+    $ver['distribution']  = 'Commons';
+    // Earlier versions of Commons made version a constant.
+    if (defined('DRUPAL_commons_release')) {
+      $ver['commons']['version'] = DRUPAL_commons_release;
+    }
+  }
+  // Determine if this is COD.
+  elseif (is_dir($install_root . '/profiles/cod')) {
+    $ver['distribution']  = 'COD';
   }
 
   return $ver;
@@ -758,7 +753,6 @@ function acquia_spi_get_platform() {
     'sapi'                    => php_sapi_name(),
   );
 
-
   $platform = array(
     'php'               => PHP_VERSION,
     'webserver_type'    => isset($webserver[1]) ? $webserver[1] : '',
@@ -771,7 +765,7 @@ function acquia_spi_get_platform() {
     'system_type'       => php_uname('s'),
     // php_uname() only accepts one character, so we need to concatenate ourselves.
     'system_version'    => php_uname('r') .' '. php_uname('v') .' '. php_uname('m') .' '. php_uname('n'),
-    'mysql'             => acquia_spi_get_platform_mysql_data(),
+    'mysql'             => ($database_type == 'mysql') ? acquia_spi_get_platform_mysql_data() : array(),
     'server'            => '',
     'apache'            => '',
   );
@@ -989,7 +983,7 @@ function _acquia_spi_generate_hashes($dir, $exclude_dirs = array(), $limit_dirs 
   // Standard nesting function
   if (is_dir($dir) && $handle = opendir($dir)) {
     while ($file = readdir($handle)) {
-      if (!in_array($file, array('.', '..', 'CVS', '.svn'))) {
+      if (!in_array($file, array('.', '..', 'CVS', '.svn', '.git'))) {
         $path = $dir == '.' ? $file : "{$dir}/{$file}";
         if (is_dir($path) && !in_array($path, $exclude_dirs) && (empty($limit_dirs) || in_array($path, $limit_dirs)) && ($file != 'translations')) {
           list($sub_hashes, $sub_fileinfo) =  _acquia_spi_generate_hashes($path, $exclude_dirs);

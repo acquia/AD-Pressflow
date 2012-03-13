@@ -6,6 +6,12 @@
  */
 
 /**
+ * Error code indicating that the request made by acquia_agent_http_request() exceeded
+ * the specified timeout.
+ */
+define('ACQUIA_HTTP_REQUEST_TIMEOUT', -1);
+
+/**
  * Performs one or more XML-RPC request(s), using a PHP stream context
  * when creating the socket.  This function is copied and modified
  * from Drupal 6's common.inc and xmlrpc.inc.
@@ -65,7 +71,8 @@ function _acquia_agent_xmlrpc() {
 function acquia_agent_stream_context_create($url, $module = 'acquia_agent') {
   $opts = array();
   $uri = parse_url($url);
-  if (isset($uri['scheme']) && ($uri['scheme'] == 'https') && variable_get('acquia_agent_verify_peer', 0)) {
+  $ssl_available = in_array('ssl', stream_get_transports(), TRUE) && !defined('ACQUIA_DEVELOPMENT_NOSSL') && variable_get('acquia_agent_verify_peer', 1);
+  if (isset($uri['scheme']) && ($uri['scheme'] == 'https') && $ssl_available) {
     // Look for a local certificate to validate the server identity.
     $pem_file = drupal_get_path('module', $module) .'/'. $uri['host'] . '.pem';
     if (file_exists($pem_file)) {
@@ -89,27 +96,29 @@ function acquia_agent_stream_context_create($url, $module = 'acquia_agent') {
  * @param ...
  *   The rest of the parameters and return values are the same as xmlrpc().
  */
-function acquia_agent_http_request($context, $url, $headers = array(), $method = 'GET', $data = NULL, $retry = 3) {
+function acquia_agent_http_request($context, $url, $headers = array(), $method = 'GET', $data = NULL, $retry = 3, $timeout = 30.0, $connect_timeout = 1.0) {
   $result = new stdClass();
 
   // Parse the URL and make sure we can handle the schema.
   $uri = parse_url($url);
 
+  timer_start(__FUNCTION__);
+
   switch ($uri['scheme']) {
     case 'http':
       $port = isset($uri['port']) ? $uri['port'] : 80;
       $host = $uri['host'] . ($port != 80 ? ':'. $port : '');
-      $fp = @fsockopen($uri['host'], $port, $errno, $errstr, 15);
+      $fp = @fsockopen($uri['host'], $port, $errno, $errstr, $connect_timeout);
       break;
     case 'https':
       // Note: Only works for PHP 4.3 compiled with OpenSSL.
       $port = isset($uri['port']) ? $uri['port'] : 443;
       $host = $uri['host'] . ($port != 443 ? ':'. $port : '');
       if (!isset($context)) {
-        $fp = @fsockopen('ssl://'. $uri['host'], $port, $errno, $errstr, 20);
+        $fp = @fsockopen('ssl://'. $uri['host'], $port, $errno, $errstr, $connect_timeout);
       }
       else {
-        $fp = @stream_socket_client('ssl://'. $uri['host'] .':'. $port, $errno, $errstr, 20, STREAM_CLIENT_CONNECT, $context);
+        $fp = @stream_socket_client('ssl://'. $uri['host'] .':'. $port, $errno, $errstr, $connect_timeout, STREAM_CLIENT_CONNECT, $context);
         if (!$fp && $errno == 0) {
           // An SSL error occurred.  I do not know of any way to get
           // an error code or message programmatically.  By not having
@@ -174,11 +183,25 @@ function acquia_agent_http_request($context, $url, $headers = array(), $method =
   }
   $result->request = $request;
 
-  fwrite($fp, $request);
+  // Calculate how much time is left of the original timeout value.
+  $time_left = $timeout - timer_read(__FUNCTION__) / 1000;
+  if ($time_left > 0) {
+    stream_set_timeout($fp, floor($time_left), floor(1000000 * fmod($time_left, 1)));
+    fwrite($fp, $request);
+  }
 
   // Fetch response.
   $response = '';
-  while (!feof($fp) && $chunk = fread($fp, 1024)) {
+  while (!feof($fp)) {
+    // Calculate how much time is left of the original timeout value.
+    $time_left = $timeout - timer_read(__FUNCTION__) / 1000;
+    if ($time_left <= 0) {
+      $result->code = ACQUIA_HTTP_REQUEST_TIMEOUT;
+      $result->error = 'request timed out';
+      return $result;
+    }
+    stream_set_timeout($fp, floor($time_left), floor(1000000 * fmod($time_left, 1)));
+    $chunk = fread($fp, 1024);
     $response .= $chunk;
   }
   fclose($fp);
@@ -225,8 +248,13 @@ function acquia_agent_http_request($context, $url, $headers = array(), $method =
     case 307: // Moved temporarily
       $location = $result->headers['Location'];
 
-      if ($retry) {
-        $result = acquia_agent_http_request($context, $result->headers['Location'], $headers, $method, $data, --$retry);
+      $timeout -= timer_read(__FUNCTION__) / 1000;
+      if ($timeout <= 0) {
+        $result->code = ACQUIA_HTTP_REQUEST_TIMEOUT;
+        $result->error = 'request timed out';
+      }
+      elseif ($retry) {
+        $result = acquia_agent_http_request($context, $result->headers['Location'], $headers, $method, $data, --$retry, $timeout, $connect_timeout);
         $result->redirect_code = $result->code;
       }
       $result->redirect_url = $location;
