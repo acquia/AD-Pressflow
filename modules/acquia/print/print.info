@@ -1,15 +1,18 @@
 name = "Printer-friendly pages"
 description = "Adds a printer-friendly version link to content and administrative pages."
 core=6.x
-package = "Printer, e-mail and PDF versions"
+package = "Printer, email and PDF versions"
 
-; Information added by drupal.org packaging script on 2011-08-18
-version = "6.x-1.14"
+; Information added by drupal.org packaging script on 2012-04-04
+version = "6.x-1.15"
 core = "6.x"
 project = "print"
-datestamp = "1313694720"
+datestamp = "1333551070"
 
 
 ; Information added by Acquia.com packaging script
+description = "[Adds a printer-friendly version link to content and administrative pages.] Patched to avoid call to undefined drupal_exit() (April 30, 2012)"
+datestamp = "1333645167"
+version = "6.x-1.15-acquiadev-1"
 acquia = "1"
 

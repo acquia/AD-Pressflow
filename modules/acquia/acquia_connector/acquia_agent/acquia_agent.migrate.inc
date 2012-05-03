@@ -435,8 +435,8 @@ function acquia_migrate_files_to_backup($directory, $exclude) {
         if (is_dir($directory . DIRECTORY_SEPARATOR . $file)) {
           // Do not include directories that cannot be executed to prevent
           // Archive_Tar error.
-          if (@file_exists($directory. DIRECTORY_SEPARATOR . $file . DIRECTORY_SEPARATOR . '.')) {
-            $array_items = array_merge($array_items, acquia_migrate_files_to_backup($directory. DIRECTORY_SEPARATOR . $file, $exclude));
+          if (@file_exists($directory . DIRECTORY_SEPARATOR . $file . DIRECTORY_SEPARATOR . '.')) {
+            $array_items = array_merge($array_items, acquia_migrate_files_to_backup($directory . DIRECTORY_SEPARATOR . $file, $exclude));
           }
         }
         elseif (is_readable($directory . DIRECTORY_SEPARATOR . $file)) {
@@ -543,12 +543,12 @@ function _acquia_migrate_backup_db_to_file_mysql(&$migration) {
 function _acquia_migrate_get_table_structure_sql_mysql($table) {
   $out = "";
 
-  $result = db_query("SHOW CREATE TABLE `". $table->Name ."`");
+  $result = db_query("SHOW CREATE TABLE `" . $table->Name ."`");
   if ($record = db_fetch_array($result)) {
-    $out .= "DROP TABLE IF EXISTS `". $table->Name ."`;\n";
+    $out .= "DROP TABLE IF EXISTS `" . $table->Name . "`;\n";
     $out .= strtr($record['Create Table'], array("\n" => " ", '"' => '`'));
     if (!empty($table->Auto_increment)) {
-      $out .= " AUTO_INCREMENT=". $table->Auto_increment;
+      $out .= " AUTO_INCREMENT=" . $table->Auto_increment;
     }
     $out .= ";\n";
   }
@@ -560,14 +560,14 @@ function _acquia_migrate_get_table_structure_sql_mysql($table) {
  */
 function _acquia_migrate_dump_table_data_sql_to_file($handle, $table) {
   $lines = 0;
-  $result = db_query("SELECT * FROM `". $table->Name ."`");
-  while($row = db_fetch_array($result)) {
+  $result = db_query("SELECT * FROM `" . $table->Name . "`");
+  while ($row = db_fetch_array($result)) {
     $items = array();
     foreach ($row as $key => $value) {
-      $items[] = is_null($value) ? "null" : "'". mysql_escape_string($value) ."'";
+      $items[] = is_null($value) ? "null" : "'" . mysql_escape_string($value) . "'";
     }
     if ($items) {
-      $data = "INSERT INTO `". $table->Name ."` VALUES (". implode(",", $items) .");\n";
+      $data = "INSERT INTO `" . $table->Name . "` VALUES (" . implode(",", $items) . ");\n";
       fwrite($handle, $data);
       $lines++;
     }
@@ -640,7 +640,7 @@ function _acquia_migrate_get_table_names_mysql() {
  *   Boundary
  */
 function _acquia_migrate_multipart_boundary() {
-  return '---------------------------'. substr(md5(rand(0,32000)),0,10);
+  return '---------------------------' . substr(md5(rand(0, 32000)), 0, 10);
 }
 
 /**
@@ -653,7 +653,7 @@ function _acquia_migrate_multipart_boundary() {
  * @return
  *   Encoded string for drupal_http_request
  */
-function _acquia_migrate_multipart_encode_params($boundary, $params, $filename, $content){
+function _acquia_migrate_multipart_encode_params($boundary, $params, $filename, $content) {
   $output = "";
   foreach ($params as $key => $value) {
     $output .= "--$boundary\r\n";
@@ -671,11 +671,11 @@ function _acquia_migrate_multipart_encode_params($boundary, $params, $filename, 
  * @param type $value
  * @return type
  */
-function _acquia_migrate_multipart_enc_text($name,  $value){
+function _acquia_migrate_multipart_enc_text($name,  $value) {
   return "Content-Disposition: form-data; name=\"$name\"\r\n\r\n$value\r\n";
 }
 
-function _acquia_migrate_multipart_enc_file($name, $filename, $file_content){
+function _acquia_migrate_multipart_enc_file($name, $filename, $file_content) {
   $mimetype = "application/octet-stream";
   $data = "Content-Disposition: form-data; name=\"$name\"; filename=\"$filename\"\r\n";
   $data .= "Content-Transfer-Encoding: binary\r\n";

@@ -83,7 +83,10 @@ function acquia_agent_menu() {
  * Implementation of hook_init().
  */
 function acquia_agent_init() {
-  if (arg(2) != 'acquia-agent' && empty($_POST) && user_access('administer site configuration') && (!acquia_agent_has_credentials())) {
+  if (arg(2) != 'acquia-agent' && empty($_POST) &&
+    user_access('administer site configuration') &&
+    (!acquia_agent_has_credentials()) &&
+    arg(0) !== 'filefield' && arg(1) != 'progress') {
     $text = 'Get a <a href="!acquia-free">free 30-day trial</a> of the Acquia Network which includes a <a href="!library" target="_blank">library</a> of expert knowledge, <a href="!services" target="_blank">tools and services</a> to make your site awesome, and <a href="!support" target="_blank">Drupal support</a> when you need it.<br/>If you have an Acquia Network subscription, <a href="!settings">connect now</a>. Otherwise, you can turn this message off by disabling the Acquia Network <a href="!admin-modules">modules</a>.';
     $message = t($text, array('!acquia-free' => url('admin/settings/acquia-agent'), '!library' => url('http://library.acquia.com'), '!settings' => url('admin/settings/acquia-agent/setup'), '!support' => url('http://www.acquia.com/drupal-support'), '!services' => url('http://www.acquia.com/products-services/acquia-network/cloud-services'), '!admin-modules' => url('admin/build/modules', array('fragment' => 'edit-modules-acquia-network-connector'))));
     drupal_set_message($message, 'warning', FALSE);
@@ -117,7 +120,7 @@ function acquia_agent_check_subscription($params = array()) {
   }
   else {
     // There is an identifier and key, so attempt communication.
-
+    $subscription = array();
     // Include version number information.
     acquia_agent_load_versions();
     if (IS_ACQUIA_DRUPAL) {

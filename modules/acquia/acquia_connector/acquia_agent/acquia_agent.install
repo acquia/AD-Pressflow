@@ -21,6 +21,7 @@ function acquia_agent_uninstall() {
   variable_del('acquia_subscription_data');
   variable_del('acquia_subscription_name');
   variable_del('acquia_agent_cloud_migration');
+  variable_del('acquia_agent_debug');
 }
 
 /**
