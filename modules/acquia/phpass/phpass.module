@@ -33,6 +33,10 @@ function phpass_form_alter(&$form, $form_state, $form_id) {
       $form['#validate'][$key] = 'phpass_user_login_authenticate_validate';
     }
   }
+  // Add to the core submit function if the core patch is not applied.
+  if (!defined('USER_LOAD_PHPASS_PATCHED') && !empty($form['#submit']) && in_array('user_register_submit', $form['#submit'])) {
+    $form['#submit'][] = 'phpass_user_register_submit';
+  }
 }
 
 /**
@@ -52,6 +56,25 @@ function phpass_system_info_alter(&$info, $file) {
 function phpass_user_login_authenticate_validate($form, &$form_state) {
   $form_state['values']['pass'] = trim($form_state['values']['pass']);
   phpass_user_authenticate($form_state['values']);
+}
+
+/**
+ * Extra submit to follow user_register_submit().
+ */
+function phpass_user_register_submit($form, &$form_state) {
+  global $user;
+
+  $account = isset($form_state['user']) ? $form_state['user'] : NULL;
+  if (!$account || user_access('administer users') || variable_get('user_email_verification', TRUE) || !$account->status) {
+    return;
+  }
+  // Test if the authentication failed (core patch not applied). This
+  // only happens when email verification is not required for registration.
+  if ($user->uid == 0 && !form_get_errors()) {
+    $user = $account;
+    user_authenticate_finalize($form_state['values']);
+    drupal_set_message(t('Registration successful. You are now logged in.'));
+  }
 }
 
 /**

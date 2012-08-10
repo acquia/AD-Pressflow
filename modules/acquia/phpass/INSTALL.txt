@@ -21,3 +21,8 @@ wiil be performed.  You may need to increase the allowed PHP memory if enabling
 via drush for very large numbers of users.
 
 Please test everything on your development copy of the site first!
+
+A core patch is also included with the module as user_load.D6.patch
+This patch is not needed for typical sites, but may be required for
+certain contrib modules that perform user registration with an external
+service or manipulate the user registration flow.

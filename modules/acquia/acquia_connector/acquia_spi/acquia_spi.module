@@ -275,7 +275,6 @@ function acquia_spi_send_profile_info() {
  *   An associative array keyed by types of information.
  */
 function acquia_spi_get() {
-
   // Get file hashes and compute serialized version.
   list($hashes, $fileinfo) = acquia_spi_file_hashes();
   $hashes_string = serialize($hashes);
@@ -359,44 +358,39 @@ function acquia_spi_run_security_review() {
     // cannot easily be retrieved.
     return array();
   }
-  if (!function_exists('security_review_run')) {
-    module_load_include('inc', 'acquia_spi', 'security_review');
-  }
+  module_load_include('inc', 'acquia_spi', 'security_review');
 
   $checklist_results = array();
-  if (function_exists('security_review_get_checks')) {
-    $skips = array();
-    // Collect the checklist.
-    $checklist = security_review_get_checks();
-    // Run only specific checks.
-    $to_check = array('input_formats', 'admin_permissions', 'untrusted_php', 'private_files', 'upload_extensions', 'filefield_extensions');
-    foreach ($checklist as $module => $checks) {
-      foreach ($checks as $check_name => $args) {
-        if (!in_array($check_name, $to_check)) {
-          unset($checklist[$module][$check_name]);
-        }
-      }
-      if (empty($checklist[$module])) {
-        unset($checklist[$module]);
+  $skips = array();
+  // Collect the checklist.
+  $checklist = acquia_spi_security_review_get_checks();
+  // Run only specific checks.
+  $to_check = array('input_formats', 'admin_permissions', 'untrusted_php', 'private_files', 'upload_extensions', 'filefield_extensions');
+  foreach ($checklist as $module => $checks) {
+    foreach ($checks as $check_name => $args) {
+      if (!in_array($check_name, $to_check)) {
+        unset($checklist[$module][$check_name]);
       }
     }
-    $checklist_results = security_review_run($checklist);
-    foreach ($checklist_results as $module => $checks) {
-      foreach ($checks as $check_name => $check) {
-        // Unset data that does not need to be sent.
-        if (is_null($check['result'])) {
-          unset($checklist_results[$module][$check_name]);
-          
-        }
-        else {
-          unset($check['success']);
-          unset($check['failure']);
-          $checklist_results[$module][$check_name] = $check;
-        }
+    if (empty($checklist[$module])) {
+      unset($checklist[$module]);
+    }
+  }
+  $checklist_results = acquia_spi_security_review_run($checklist);
+  foreach ($checklist_results as $module => $checks) {
+    foreach ($checks as $check_name => $check) {
+      // Unset data that does not need to be sent.
+      if (is_null($check['result'])) {
+        unset($checklist_results[$module][$check_name]);
       }
-      if (empty($checklist_results[$module])) {
-         unset($checklist_results[$module]);
+      else {
+        unset($check['success']);
+        unset($check['failure']);
+        $checklist_results[$module][$check_name] = $check;
       }
+    }
+    if (empty($checklist_results[$module])) {
+       unset($checklist_results[$module]);
     }
   }
   return $checklist_results;
@@ -459,7 +453,7 @@ function acquia_spi_get_version_info() {
     }
   }
   // Determine if this is Commons
-  elseif (is_dir($install_root . '/profiles/commons')) {
+  elseif (is_dir($install_root . '/profiles/drupal_commons') || is_dir($install_root . '/profiles/commons')) {
     $ver['distribution']  = 'Commons';
     // Earlier versions of Commons made version a constant.
     if (defined('DRUPAL_commons_release')) {
@@ -668,8 +662,9 @@ function acquai_spi_get_404s() {
  *
  */
 function acquia_spi_get_variables_data() {
+  global $conf;
   $data = array();
-  $variables = array('googleanalytics_cache', 'error_level', 'preprocess_js', 'page_cache_maximum_age', 'block_cache', 'preprocess_css', 'page_compression', 'cache', 'cache_lifetime', 'cron_last', 'clean_url', 'redirect_global_clean', 'theme_zen_settings', 'site_offline', 'site_name', 'user_register', 'user_signatures', 'filter_default_format', 'filter_html_1', 'filter_html_2', 'poormanscron_interval', 'dblog_row_limit', 'install_profile', 'user_email_verification');
+  $variables = array('acquia_spi_send_node_user', 'acquia_spi_admin_priv', 'acquia_spi_module_diff_data', 'acquia_spi_send_watchdog', 'acquia_spi_use_cron', 'cache_inc', 'cacherouter', 'googleanalytics_cache', 'error_level', 'preprocess_js', 'page_cache_maximum_age', 'block_cache', 'preprocess_css', 'page_compression', 'cache', 'cache_lifetime', 'cron_last', 'clean_url', 'redirect_global_clean', 'theme_zen_settings', 'site_offline', 'site_name', 'user_register', 'user_signatures', 'filter_default_format', 'filter_html_1', 'filter_html_2', 'poormanscron_interval', 'dblog_row_limit', 'install_profile', 'user_email_verification');
   // Add comment settings for node types.
   $types = node_get_types();
   if (!empty($types)) {
@@ -678,11 +673,15 @@ function acquia_spi_get_variables_data() {
     }
   }
 
-  $results = db_query('SELECT name, value FROM {variable} WHERE name in (' . db_placeholders($variables, 'text') . ') ORDER BY name', $variables);
-  while ($result = db_fetch_array($results)) {
-    if ($result && isset($result['value'])) {
-      $data[$result['name']] = unserialize($result['value']);
+  foreach ($variables as $name) {
+    if (isset($conf[$name])) {
+      $data[$name] = $conf[$name];
     }
+  }
+  if (module_exists('globalredirect') && function_exists('_globalredirect_get_settings')) {
+    // Explicitly get Global Redirect settings since it deletes its variable
+    // if the settings match the defaults.
+    $data['globalredirect_settings'] = _globalredirect_get_settings();
   }
   // Collapse to JSON string to simplify transport. NSPI server will not
   // re-encode for storage.
@@ -718,7 +717,7 @@ function acquia_spi_get_failed_logins() {
 
     while ($result = db_fetch_array($results)) {
       $variables = unserialize($result['variables']);
-      $last_logins['failed'][$result['timestamp']] = $variables['%user'];
+      $last_logins['failed'][$result['timestamp']] = check_plain($variables['%user']);
     }
   }
   return $last_logins;
@@ -839,7 +838,9 @@ function acquia_spi_get_platform_mysql_data() {
   // what happens if we run this on mssql or postgres
   $ret = array();
   while ($row = db_fetch_array($res)) {
-
+    if (!isset($row['Variable_name'])) {
+      continue;
+    }
     switch ($row['Variable_name']) {
       case 'Table_locks_waited':
         $ret['Table_locks_waited'] = $row['Value'];
@@ -900,16 +901,67 @@ function acquia_spi_get_platform_mysql_data() {
  * @return array
  */
 function acquia_spi_get_system_status() {
+  $data = array();
 
-  // Load .install files
-  include_once './includes/install.inc';
-  drupal_load_updates(); // This is run to load the install files of all modules, which contain the hook_requirements used below
-
-  // Check run-time requirements and status information.
-  $requirements = module_invoke_all('requirements', 'runtime');
-  usort($requirements, '_system_sort_requirements');
-
-  return $requirements;
+  $data['php'] = array(
+    'title' => 'PHP',
+    'value' => phpversion(),
+  );
+  $conf_dir = TRUE;
+  $settings = TRUE;
+  $dir = conf_path();
+  if (is_writable($dir) || is_writable($dir . '/settings.php')) {
+    $value = 'Not protected';
+    if (is_writable($dir)) {
+      $conf_dir = FALSE;
+    }
+    elseif (is_writable($dir . '/settings.php')) {
+      $settings = FALSE;
+    }
+  }
+  else {
+    $value = 'Protected';
+  }
+  $data['settings.php'] = array(
+    'title' => 'Configuration file',
+    'value' => $value,
+    'conf_dir' => $conf_dir,
+    'settings' => $settings,
+  );
+  $cron_last = variable_get('cron_last', NULL);
+  if (!is_numeric($cron_last)) {
+    $cron_last = variable_get('install_time', 0);
+  }
+  $data['cron'] = array(
+    'title' => 'Cron maintenance tasks',
+    'value' => t('Last run !time ago', array('!time' => format_interval(time() - $cron_last))),
+    'cron_last' => $cron_last,
+  );
+  if (!empty($GLOBALS['update_free_access'])) {
+    $data['update access'] = array(
+      'value' => 'Not protected',
+      'protected' => FALSE,
+    );
+  }
+  else {
+    $data['update access'] = array(
+      'value' => 'Protected',
+      'protected' => TRUE,
+    );
+  }
+  $data['update access']['title'] = 'Access to update.php';
+  if (!module_exists('update')) {
+    $data['update status'] = array(
+      'value' => 'Not enabled',
+    );
+  }
+  else {
+    $data['update status'] = array(
+      'value' => 'Enabled',
+    );
+  }
+  $data['update status']['title'] = 'Update notifications';
+  return $data;
 }
 
 /**

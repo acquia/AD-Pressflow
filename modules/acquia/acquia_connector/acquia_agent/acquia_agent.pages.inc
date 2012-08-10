@@ -156,6 +156,12 @@ function acquia_agent_migrate_form(&$form_state) {
       '#description' => t('Include files directory and all files in migration. If you are experiencing migration errors it is recommended you do not send the files directory.'),
       '#default_value' => variable_get('acquia_migrate_files', 1),
     );
+    $form['reduce_db_size'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Reduce database export size'),
+      '#description' => t('Reduce the database export size by excluding the data from cache, session, and watchdog tables. If you are experiencing migration errors this is recommended. Table structure will still be exported.'),
+      '#default_value' => 0,
+    );
   }
 
   $form['submit'] = array(
@@ -568,7 +574,7 @@ function acquia_agent_settings_form($form_state, $banner) {
   $form['migrate'] = array(
     '#type' => 'fieldset',
     '#title' => t('Acquia Cloud Migrate'),
-    '#description' => t('Migrate your site to Acquia Cloud hosting service.'),
+    '#description' => t('Transfer a fully-functional copy of your site to Acquia Cloud. <a href="!url">Read more</a>', array('!url' => url('https://docs.acquia.com/cloud/site/import/connector'))),
     '#collapsible' => TRUE,
     '#collapsed' => $collapsed,
   );
@@ -632,6 +638,7 @@ function acquia_agent_migrate_form_submit($form, &$form_state) {
 
   $migrate_files = !empty($form_state['values']['migrate_files']) ? $form_state['values']['migrate_files'] : 1;
   variable_set('acquia_migrate_files', $migrate_files);
+  $reduce_db_size = !empty($form_state['values']['reduce_db_size']) ? $form_state['values']['reduce_db_size'] : 0;
   if (count($form_state['values']['envs']) > 1) {
     // Use selected environment.
     $env = $form_state['values']['envs'][$form_state['values']['environment']];
@@ -645,6 +652,9 @@ function acquia_agent_migrate_form_submit($form, &$form_state) {
   // Prepare for migration.
   $migration = acquia_migrate_prepare($env);
   $migration['site_name'] = $site_name;
+  if ($reduce_db_size) {
+    $migration['no_data_tables'] = array('cache', 'cache_menu', 'cache_page', 'sessions', 'watchdog');
+  }
 
   if (isset($migration['error']) && $migration['error'] !== FALSE) {
     drupal_set_message(t('Unable to begin migration. @error', array('@error' => $migration['error'])), 'error');

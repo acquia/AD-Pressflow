@@ -143,7 +143,7 @@ function phpass_update_6200(&$sess) {
     // Copy any portable hashes to the {users} table from {phpass}. The subquery
     // for should work for both postgres and mysql (I think).
     if (variable_get('user_hash_method', 'phpass') == 'phpass' && variable_get('user_hash_portable', TRUE)) {
-      $ret[] = update_sql("UPDATE {users} u SET u.pass = (SELECT up.hash FROM {user_phpass} up WHERE up.uid = u.uid) WHERE EXISTS (SELECT up.hash FROM {user_phpass} up WHERE up.uid = u.uid)");
+      $ret[] = update_sql("UPDATE {users} u SET pass = (SELECT up.hash FROM {user_phpass} up WHERE up.uid = u.uid) WHERE EXISTS (SELECT up.hash FROM {user_phpass} up WHERE up.uid = u.uid)");
     }
     db_drop_table($ret, 'user_phpass');
     variable_del('user_hash_method');

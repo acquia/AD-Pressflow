@@ -76,6 +76,7 @@ class Acquia_Search_Service extends Drupal_Apache_Solr_Service {
     );
     list ($data, $headers) = $this->_makeHttpRequest($url, 'POST', $request_headers, $rawPost, $timeout);
     $response = new Apache_Solr_Response($data, $headers, $this->_createDocuments, $this->_collapseSingleValueArrays);
+    $hmac = acquia_search_extract_hmac($headers);
     $code = (int) $response->getHttpStatus();
     if ($code != 200) {
       $message = $response->getHttpStatusMessage() . "\n request ID: $id \n";
@@ -84,6 +85,9 @@ class Acquia_Search_Service extends Drupal_Apache_Solr_Service {
         $message .= $response->getRawResponse();
       }
       throw new Exception('"' . $code . '" Status: ' . $message);
+    }
+    elseif (!acquia_search_valid_response($hmac, $nonce, $data)) {
+      throw new Exception('Authentication of search content failed url: '. $url);
     }
     return $response;
   }
@@ -170,12 +174,21 @@ class Acquia_Search_Service extends Drupal_Apache_Solr_Service {
       $default_socket_timeout = ini_set('default_socket_timeout', $timeout);
     }
 
+    // Gets necessary values from configuration.
+    $connect_timeout = variable_get('acquia_search_connect_timeout', '1.0');
+    if (FALSE === $timeout) {
+      $request_timeout = variable_get('acquia_search_request_timeout', '20.0');
+    }
+    else {
+      $request_timeout = $timeout;
+    }
+
     $ctx = acquia_agent_stream_context_create($url, 'acquia_search');
     if (!$ctx) {
       throw new Exception(t("Could not create stream context"));
     }
 
-    $result = acquia_agent_http_request($ctx, $url, $headers, $method, $content);
+    $result = acquia_agent_http_request($ctx, $url, $headers, $method, $content, $request_timeout, $connect_timeout);
 
     // Restore the response timeout
     if ($timeout) {
@@ -184,6 +197,7 @@ class Acquia_Search_Service extends Drupal_Apache_Solr_Service {
 
     // This will no longer be needed after http://drupal.org/node/345591 is committed
     $responses = array(
+      -1 => 'Timeout expired',
       0 => 'Request failed',
       100 => 'Continue', 101 => 'Switching Protocols',
       200 => 'OK', 201 => 'Created', 202 => 'Accepted', 203 => 'Non-Authoritative Information', 204 => 'No Content', 205 => 'Reset Content', 206 => 'Partial Content',

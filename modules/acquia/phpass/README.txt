@@ -8,6 +8,11 @@ IMPORTANT - this module cannot be disabled except via SQL or upgrading to
 Drupal 7. Disabling will mean all users will have to login via password-reset
 links.
 
+Upgrading to Drupal 7 should be seamless as long as the core version is
+>= 7.9.  That is the first release that includes the fix at
+http://drupal.org/node/1205138.  The hashes stored in the {users} table
+by this module are fully compatible with the Drupal 7 password system.
+
 The default Drupal 6 and before password hashes are insecure. MD5 has 
 long been known to be crackable, and we should not be storing passwords
 using this.

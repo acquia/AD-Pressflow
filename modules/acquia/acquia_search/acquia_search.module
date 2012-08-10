@@ -6,7 +6,7 @@
  *   Integration between Acquia Drupal and Acquia's hosted solr search service.
  */
 
-define('ACQUIA_SEARCH_VERSION', "6.x-1.5699");
+define('ACQUIA_SEARCH_VERSION', "6.x-1.5700");
 
 /**
  * Implementation of hook_enable().
@@ -23,9 +23,37 @@ function acquia_search_enable() {
  * Helper function - set apachesolr variables to Acquia values..
  */
 function _acquia_search_set_variables() {
-  variable_set('apachesolr_host', variable_get('acquia_search_host', 'search.acquia.com'));
+  $identifier = acquia_agent_settings('acquia_identifier');
+  $subscription = acquia_agent_settings('acquia_subscription_data');
+  $search_host = variable_get('acquia_search_host', 'search.acquia.com');
+  // @todo rework this logic once we have AH_SERVER_REGION
+  // legacy_internal will be true if 'internal.' is the start of the host
+  // name that's set in via Acquia Cloud platform or vset.
+  $legacy_internal = (strpos($search_host, 'internal.') === 0);
+
+  // Adding the subscription specific colony to the heartbeat data
+  if (!empty($subscription['heartbeat_data']['search_service_colony'])) {
+    $search_host = $subscription['heartbeat_data']['search_service_colony'];
+    if ($legacy_internal) {
+      // If we want to be using an internal host name, fix the one
+      // from the hearbeat data here.
+      $search_host = 'internal.' . $search_host;
+    }
+  }
+  else {
+    // Check if we are on Acquia Cloud hosting. @see NN-2503
+    if (!empty($_ENV['AH_SITE_ENVIRONMENT']) && !empty($_ENV['AH_SERVER_REGION'])) {
+      if ($_ENV['AH_SERVER_REGION'] == 'us-east-1' && $search_host == 'search.acquia.com') {
+        $search_host = 'internal.search.acquia.com';
+      }
+      elseif (strpos($search_host, 'search-' . $_ENV['AH_SERVER_REGION']) === 0) {
+        $search_host = 'internal.' . $search_host;
+      }
+    }
+  }
+  variable_set('apachesolr_host', $search_host);
   variable_set('apachesolr_port', variable_get('acquia_search_port', '80'));
-  variable_set('apachesolr_path', variable_get('acquia_search_path', '/solr/'. acquia_agent_settings('acquia_identifier')));
+  variable_set('apachesolr_path', variable_get('acquia_search_path', '/solr/'. $identifier));
   variable_set('apachesolr_service_class', array('acquia_search', 'Acquia_Search_Service.php', 'Acquia_Search_Service'));
   if (!variable_get('apachesolr_failure', FALSE)) {
     variable_set('apachesolr_failure', 'show_drupal_results');
@@ -90,6 +118,28 @@ function acquia_search_form_apachesolr_settings_alter(&$form, $form_state) {
       '#description' => t('If enabled, all Acquia Search keyword searches may use advanced <a href="@url">Lucene syntax</a> such as wildcard searches, fuzzy searches, proximity searches, boolean operators and more via the Extended Dismax parser.', array('@url' => 'http://lucene.apache.org/java/2_9_3/queryparsersyntax.html')),
       '#weight' => 10,
     );
+
+    $form['advanced']['acquia_search_request_timeout'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Request timeout'),
+      '#required' => TRUE,
+      '#default_value' => variable_get('acquia_search_request_timeout', '20.0'),
+      '#description' => t('A timeout in seconds that the entire request cannot exceeed. Usually this value will be significantly greater than the connection timeout.'),
+      '#size' => 5,
+      '#weight' => 15,
+    );
+
+    $form['advanced']['acquia_search_connect_timeout'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Connection timeout'),
+      '#required' => TRUE,
+      '#default_value' => variable_get('acquia_search_connect_timeout', '1.0'),
+      '#description' => t('A timeout in seconds that the connection alone cannot exceeed. It is usually safe to set this value is set between 1 and 5 seconds.'),
+      '#size' => 5,
+      '#weight' => 15,
+    );
+
+    $form['#validate'][] = 'acquia_search_settings_validate';
   }
 }
 
@@ -117,6 +167,17 @@ function acquia_search_flush_caches() {
   return array();
 }
 
+/**
+ * Added validate function for the apachesolr_settings form.
+ */
+function acquia_search_settings_validate(&$form, &$form_state) {
+  if (!is_numeric($form_state['values']['acquia_search_request_timeout'])) {
+    form_set_error('acquia_search_request_timeout', t('Request timeout must be numeric.'));
+  }
+  if (!is_numeric($form_state['values']['acquia_search_connect_timeout'])) {
+    form_set_error('acquia_search_connect_timeout', t('Connection timeout must be numeric.'));
+  }
+}
 
 /**
  * Added submit function for acquia_agent_settings and apachesolr_settings forms.

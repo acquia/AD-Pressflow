@@ -1,0 +1,44 @@
+diff --git a/modules/user/user.module b/modules/user/user.module
+index 625a00c..88ffbdb 100644
+--- a/modules/user/user.module
++++ b/modules/user/user.module
+@@ -7,6 +7,8 @@
+ 
+ define('USERNAME_MAX_LENGTH', 60);
+ define('EMAIL_MAX_LENGTH', 64);
++// Extra define to indicate user_load() is patched.
++define('USER_LOAD_PHPASS_PATCHED', 1);
+ 
+ /**
+  * Invokes hook_user() in every module.
+@@ -162,14 +164,14 @@ function user_load($user_info = array()) {
+     return FALSE;
+   }
+ 
++  $password_check_needed = FALSE;
+   foreach ($user_info as $key => $value) {
+     if ($key == 'uid' || $key == 'status') {
+       $query[] = "$key = %d";
+       $params[] = $value;
+     }
+     else if ($key == 'pass') {
+-      $query[] = "pass = '%s'";
+-      $params[] = md5($value);
++      $password_check_needed = TRUE;
+     }
+     else {
+       $query[]= "LOWER($key) = LOWER('%s')";
+@@ -181,6 +183,13 @@ function user_load($user_info = array()) {
+   if ($user = db_fetch_object($result)) {
+     $user = drupal_unpack($user);
+ 
++    if ($password_check_needed) {
++      module_load_include('inc', 'phpass', 'password');
++      if (!user_check_password($user_info['pass'], $user)) {
++        return FALSE;
++      }
++    }
++
+     $user->roles = array();
+     if ($user->uid) {
+       $user->roles[DRUPAL_AUTHENTICATED_RID] = 'authenticated user';
