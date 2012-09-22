@@ -6,16 +6,16 @@
  *   Integration between Acquia Drupal and Acquia's hosted solr search service.
  */
 
-define('ACQUIA_SEARCH_VERSION', "6.x-1.5700");
+define('ACQUIA_SEARCH_VERSION', "6.x-1.5702");
 
 /**
  * Implementation of hook_enable().
  */
 function acquia_search_enable() {
   if (acquia_agent_subscription_is_active()) {
-    _acquia_search_set_variables();
     // Send a heartbeat so the Acquia Network knows the module is enabled.
     acquia_agent_check_subscription();
+    _acquia_search_set_variables();
   }
 }
 
@@ -27,30 +27,28 @@ function _acquia_search_set_variables() {
   $subscription = acquia_agent_settings('acquia_subscription_data');
   $search_host = variable_get('acquia_search_host', 'search.acquia.com');
   // @todo rework this logic once we have AH_SERVER_REGION
-  // legacy_internal will be true if 'internal.' is the start of the host
+  // legacy_internal will be true if 'internal-' is the start of the host
   // name that's set in via Acquia Cloud platform or vset.
-  $legacy_internal = (strpos($search_host, 'internal.') === 0);
-
+  $legacy_internal = preg_match('/internal[-.]/', $search_host);
   // Adding the subscription specific colony to the heartbeat data
   if (!empty($subscription['heartbeat_data']['search_service_colony'])) {
     $search_host = $subscription['heartbeat_data']['search_service_colony'];
     if ($legacy_internal) {
       // If we want to be using an internal host name, fix the one
       // from the hearbeat data here.
-      $search_host = 'internal.' . $search_host;
+      $search_host = 'internal-' . $search_host;
     }
   }
-  else {
-    // Check if we are on Acquia Cloud hosting. @see NN-2503
-    if (!empty($_ENV['AH_SITE_ENVIRONMENT']) && !empty($_ENV['AH_SERVER_REGION'])) {
-      if ($_ENV['AH_SERVER_REGION'] == 'us-east-1' && $search_host == 'search.acquia.com') {
-        $search_host = 'internal.search.acquia.com';
-      }
-      elseif (strpos($search_host, 'search-' . $_ENV['AH_SERVER_REGION']) === 0) {
-        $search_host = 'internal.' . $search_host;
-      }
+  // Check if we are on Acquia Cloud hosting. @see NN-2503
+  if (!empty($_ENV['AH_SITE_ENVIRONMENT']) && !empty($_ENV['AH_SERVER_REGION'])) {
+    if ($_ENV['AH_SERVER_REGION'] == 'us-east-1' && $search_host == 'search.acquia.com') {
+      $search_host = 'internal-search.acquia.com';
+    }
+    elseif (strpos($search_host, 'search-' . $_ENV['AH_SERVER_REGION']) === 0) {
+      $search_host = 'internal-' . $search_host;
     }
   }
+
   variable_set('apachesolr_host', $search_host);
   variable_set('apachesolr_port', variable_get('acquia_search_port', '80'));
   variable_set('apachesolr_path', variable_get('acquia_search_path', '/solr/'. $identifier));
@@ -59,6 +57,12 @@ function _acquia_search_set_variables() {
     variable_set('apachesolr_failure', 'show_drupal_results');
   }
   variable_set('apachesolr_search_make_default', 1);
+  // Refresh the salt with the subscription data returned by the heartbeat
+  // since it can change periodically.
+  $salt = variable_get('acquia_search_derived_key_salt', '');
+  if (isset($subscription['derived_key_salt']) && $salt != $subscription['derived_key_salt']) {
+    variable_set('acquia_search_derived_key_salt', $subscription['derived_key_salt']);
+  }
 }
 
 /**
@@ -77,6 +81,7 @@ function acquia_search_delete_variables() {
   variable_del('apachesolr_path');
   variable_del('apachesolr_service_class');
   variable_del('apachesolr_search_make_default');
+  variable_del('acquia_search_derived_key_salt');
 }
 
 /**
@@ -133,7 +138,7 @@ function acquia_search_form_apachesolr_settings_alter(&$form, $form_state) {
       '#type' => 'textfield',
       '#title' => t('Connection timeout'),
       '#required' => TRUE,
-      '#default_value' => variable_get('acquia_search_connect_timeout', '1.0'),
+      '#default_value' => variable_get('acquia_search_connect_timeout', '3.0'),
       '#description' => t('A timeout in seconds that the connection alone cannot exceeed. It is usually safe to set this value is set between 1 and 5 seconds.'),
       '#size' => 5,
       '#weight' => 15,
@@ -264,22 +269,58 @@ function acquia_search_auth_cookie(&$url, $string = '', $derived_key = NULL) {
 }
 
 /**
+ * Returns the subscription's salt used to generate the derived key.
+ *
+ * The salt is stored in a system variable so that this module can continue
+ * connecting to Acquia Search even when the subscription data is not available.
+ * The most common reason for subscription data being unavailable is a failed
+ * heartbeat connection to rpc.acquia.com.
+ *
+ * Acquia Connector versions <= 7.x-2.7 pulled the derived key salt directly
+ * from the subscription data. In order to allow for seamless upgrades, this
+ * function checks whether the system variable exists and sets it with the data
+ * in the subscription if it doesn't.
+ *
+ * @return string
+ *   The derived key salt.
+ *
+ * @see http://drupal.org/node/1784114
+ */
+function acquia_search_derived_key_salt() {
+  $salt = variable_get('acquia_search_derived_key_salt', '');
+  if (!$salt) {
+    // If the variable doesn't exist, set it using the subscription data.
+    $subscription = acquia_agent_settings('acquia_subscription_data');
+    if (isset($subscription['derived_key_salt'])) {
+      variable_set('acquia_search_derived_key_salt', $subscription['derived_key_salt']);
+      $salt = $subscription['derived_key_salt'];
+    }
+  }
+  return $salt;
+}
+
+/**
  * Derive a key for the solr hmac using the information shared with acquia.com.
  */
 function _acquia_search_derived_key() {
   static $derived_key = NULL;
   if (!isset($derived_key) && acquia_agent_subscription_is_active()) {
     $key = acquia_agent_settings('acquia_key');
-    $subscription = acquia_agent_settings('acquia_subscription_data');
     $identifier = acquia_agent_settings('acquia_identifier');
+    $derived_key_salt = acquia_search_derived_key_salt();
     // We use a salt from acquia.com in key derivation since this is a shared
     // value that we could change on the AN side if needed to force any
     // or all clients to use a new derived key.  We also use a string
     // ('solr') specific to the service, since we want each service using a
     // derived key to have a separate one.
-    $salt = isset($subscription['derived_key_salt']) ? $subscription['derived_key_salt'] : '';
-    $derivation_string = $identifier . 'solr' . $salt;
-    $derived_key = _acquia_search_hmac($key, str_pad($derivation_string, 80, $derivation_string));
+    if (empty($derived_key_salt) || empty($key) || empty($identifier)) {
+      // Expired or invalid subscription - don't continue.
+       $derived_key = '';
+    }
+    else {
+      $derivation_string = $identifier . 'solr' . $derived_key_salt;
+      $derived_key = _acquia_search_hmac($key, str_pad($derivation_string, 80, $derivation_string));
+    }
   }
   return $derived_key;
 }
@@ -345,24 +386,3 @@ function _acquia_search_hmac($key, $string) {
   return sha1((str_pad($key, 64, chr(0x00)) ^ (str_repeat(chr(0x5c), 64))) . pack("H*", sha1((str_pad($key, 64, chr(0x00)) ^ (str_repeat(chr(0x36), 64))) . $string)));
 }
 
-/**
- * Implementation of hook_update_status_alter().
- *
- * This function disables the reporting of apachesolr update notifications
- * if the acquia_search module is enabled.  When the administrator updates
- * the acquia_search module, the apachesolr module is also updated, so there
- * is no need for both.
- *
- * @param $projects
- *   Reference to an array of information about available updates to each
- *   project installed on the system.
- *
- * @see update_calculate_project_data()
- */
-function acquia_search_update_status_alter(&$projects) {
-  // If we are running Acquia Drupal, acquia_agent handles this.
-  if (!acquia_agent_has_update_service() && isset($projects['apachesolr'])) {
-    $projects['acquia_search']['includes']['apachesolr'] = $projects['apachesolr']['title'];
-    unset($projects['apachesolr']);
-  }
-}

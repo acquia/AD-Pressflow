@@ -22,6 +22,25 @@ class Acquia_Search_Service extends Drupal_Apache_Solr_Service {
     $url .= 'request_id=' . $id;
     return $id;
   }
+
+  /**
+   * Raw Add Method. Takes a raw post body and sends it to the update service.  Post body
+   * should be a complete and well formed "add" xml document.
+   *
+   * @param string $rawPost
+   * @return Apache_Solr_Response
+   *
+   * @throws Exception If an error occurs during the service call
+   *
+   * @override
+   */
+  public function add($rawPost) {
+    if (variable_get('apachesolr_read_only', 0)) {
+      throw new Exception('Operating in read-only mode; updates are disabled.');
+    }
+    return $this->_sendRawPost($this->_updateUrl, $rawPost);
+  }
+
   /**
    * Central method for making a get operation against this Solr Server
    *
@@ -61,9 +80,6 @@ class Acquia_Search_Service extends Drupal_Apache_Solr_Service {
    * @see Drupal_Apache_Solr_Service::_sendRawGet()
    */
   protected function _sendRawPost($url, $rawPost, $timeout = FALSE, $contentType = 'text/xml; charset=UTF-8')  {
-    if (variable_get('apachesolr_read_only', 0)) {
-      throw new Exception('Operating in read-only mode; updates are disabled.');
-    }
     $id = $this->add_request_id($url);
     list($cookie, $nonce) = acquia_search_auth_cookie($url, $rawPost);
     if (empty($cookie)) {
@@ -114,7 +130,7 @@ class Acquia_Search_Service extends Drupal_Apache_Solr_Service {
    * @param float $timeout
    *   Read timeout in seconds or FALSE.
    *
-   * @return 
+   * @return
    *  Apache_Solr_Response object
    */
   public function makeServletRequest($servlet, $params = array(), $method = 'GET', $request_headers = array(), $rawPost = '', $timeout = FALSE) {
@@ -175,7 +191,7 @@ class Acquia_Search_Service extends Drupal_Apache_Solr_Service {
     }
 
     // Gets necessary values from configuration.
-    $connect_timeout = variable_get('acquia_search_connect_timeout', '1.0');
+    $connect_timeout = variable_get('acquia_search_connect_timeout', '3.0');
     if (FALSE === $timeout) {
       $request_timeout = variable_get('acquia_search_request_timeout', '20.0');
     }

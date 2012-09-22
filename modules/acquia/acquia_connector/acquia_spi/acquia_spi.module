@@ -5,6 +5,8 @@
  *   Send site profile information (NSPI) and system data to Acquia Network.
  */
 
+define('ACQUIA_SPI_DATA_VERSION', '2.0');
+
 /**
  * Implementation of hook_help()
  */
@@ -87,7 +89,7 @@ function acquia_spi_boot() {
 function _acquia_spi_send_access() {
   $acquia_key = acquia_agent_settings('acquia_key');
   if (!empty($acquia_key) && isset($_GET['key'])) {
-    $key = md5($acquia_key . '-spi-send-' . drupal_get_private_key());
+    $key = sha1(drupal_get_private_key());
     if ($key == $_GET['key']) {
       return TRUE;
     }
@@ -220,14 +222,14 @@ function acquia_spi_form_acquia_agent_settings_form_alter(&$form) {
     '#default_value' => $use_cron,
   );
   if (!$use_cron) {
-    $key = md5(acquia_agent_settings('acquia_key') . '-spi-send-' . drupal_get_private_key());
+    $key = sha1(drupal_get_private_key());
     $url = url('system/acquia-spi-send', array('query' => array('key' => $key), 'absolute' => TRUE));
     $form['connection']['spi_use_cron_url'] = array(
       '#value'  => t('<p>Enter the following URL in your server\'s crontab to send SPI data:<br/><em>!url</em></p>', array('!url' => $url)),
     );
   }
 
-  $form['actions']['submit']['#submit'][] = 'acquia_agent_spi_set_submit';
+  $form['submit']['#submit'][] = 'acquia_agent_spi_set_submit';
 }
 
 /*
@@ -239,7 +241,6 @@ function acquia_agent_spi_set_submit($form, &$form_state) {
   variable_set('acquia_spi_send_node_user', $form_state['values']['send_node_user']);
   variable_set('acquia_spi_send_watchdog', $form_state['values']['send_watchdog']);
   variable_set('acquia_spi_use_cron', $form_state['values']['spi_use_cron']);
-  drupal_set_message(t('The Acquia configuration options have been saved.'));
 }
 
 /**
@@ -262,10 +263,90 @@ function acquia_spi_send_profile_info() {
     // Specify version 3 of the RPC, which ommits request parameters in the HMAC.
     // @todo move to version 4, JSON over XML-RPC.
     $spi['rpc_version'] = 3;
-    variable_set('acquia_spi_cron_last', time());
     $result = acquia_agent_call('acquia.nspi.update', $spi, NULL, NULL, $nspi_server);
+    // Check result for command to update SPI definition.
+    $update_command = isset($result['result']['update_spi_definition']) ? $result['result']['update_spi_definition'] : FALSE;
+    if ($update_command == TRUE) {
+      acquia_spi_update_definition();
+    }
+
+    variable_set('acquia_spi_cron_last', time());
     return $result['result'];
   }
+}
+
+/**
+ * Checks if NSPI server has an updated SPI data definition.
+ * If it does, then this function updates local copy of SPI definition data.
+ *
+ * @return boolean
+ *   True if SPI definition data has been updated
+ */
+function acquia_spi_update_definition() {
+  $core_version = substr(VERSION, 0, 1);
+  $spi_def_end_point = variable_get('acquia_spi_server', 'https://nspi.acquia.com');
+  $spi_def_end_point .= '/spi_def/get/' . $core_version;
+  $data = http_build_query(array('spi_data_version' => ACQUIA_SPI_DATA_VERSION));
+  $response = drupal_http_request($spi_def_end_point, array('Content-type' => 'application/json'), 'GET', $data);
+  if ($response->code != 200 || !isset($response->data)) {
+    watchdog('acquia spi', 'Failed to obtain latest SPI data definition. HTTP response: @response', array('@response' => var_export($response, TRUE)), WATCHDOG_ERROR);
+    return FALSE;
+  }
+  else {
+    $response_data = json_decode($response->data, TRUE); // Force it to array.
+    $expected_data_types = array(
+      'drupal_version' => 'string',
+      'timestamp' => 'string',
+      'acquia_spi_variables' => 'array',
+    );
+    // Make sure that $response_data contains everything expected.
+    foreach($expected_data_types as $key => $values) {
+      if (!array_key_exists($key, $response_data) || gettype($response_data[$key]) != $expected_data_types[$key]) {
+        watchdog('acquia spi', 'Received SPI data definition does not match expected pattern while checking "@key". Received and expected data: @data', array('@key' => $key, '@data' => var_export(array_merge(array('expected_data' => $expected_data_types), array('response_data' => $response_data)), 1), TRUE), WATCHDOG_ERROR);
+        return FALSE;
+      }
+    }
+    if ($response_data['drupal_version'] != $core_version) {
+      watchdog('acquia spi', 'Received SPI data definition does not match with current version of your Drupal installation. Data received for Drupal @version', array('@version' => $response_data['drupal_version']), WATCHDOG_ERROR);
+      return FALSE;
+    }
+  }
+
+  // NSPI response is in expected format.
+  if ((int) $response_data['timestamp'] > (int) variable_get('acquia_spi_def_timestamp', 0)) {
+    // Compare stored variable names to incoming and report on update.
+    $old_vars = variable_get('acquia_spi_def_vars', array());
+    $new_vars = $response_data['acquia_spi_variables'];
+    $new_optional_vars = 0;
+    foreach($new_vars as $new_var_name => $new_var) {
+      // Count if received from NSPI optional variable is not present in old local SPI definition
+      // or if it already was in old SPI definition, but was not optional
+      if ($new_var['optional'] && !array_key_exists($new_var_name, $old_vars) || 
+          $new_var['optional'] && isset($old_vars[$new_var_name]) && !$old_vars[$new_var_name]['optional']) {
+        $new_optional_vars++;
+      }
+    }
+    // Clean up waived vars that are not exposed by NSPI anymore.
+    $waived_spi_def_vars = variable_get('acquia_spi_def_waived_vars', array());
+    $changed_bool = FALSE;
+    foreach($waived_spi_def_vars as $key => $waived_var) {
+      if (!in_array($waived_var, $new_vars)) {
+        unset($waived_spi_def_vars[$key]);
+        $changed_bool = TRUE;
+      }
+    }
+    if ($changed_bool) {
+      variable_set('acquia_spi_def_waived_vars', $waived_spi_def_vars);
+    }
+    // Finally, save SPI definition data.
+    if ($new_optional_vars > 0) {
+      variable_set('acquia_spi_new_optional_data', 1);
+    }
+    variable_set('acquia_spi_def_timestamp', $response_data['timestamp']);
+    variable_set('acquia_spi_def_vars', $response_data['acquia_spi_variables']);
+    return TRUE;
+  }
+  return FALSE;
 }
 
 /**
@@ -284,7 +365,8 @@ function acquia_spi_get() {
 
   // Default values return
   $spi = array(
-    'drupal_key'     => drupal_get_private_key(),
+    'spi_data_version' => ACQUIA_SPI_DATA_VERSION,
+    'site_key'        => sha1(drupal_get_private_key()),
     'modules'        => acquia_spi_get_modules(),
     'platform'       => acquia_spi_get_platform(),
     'quantum'        => acquia_spi_get_quantum(),
@@ -665,6 +747,14 @@ function acquia_spi_get_variables_data() {
   global $conf;
   $data = array();
   $variables = array('acquia_spi_send_node_user', 'acquia_spi_admin_priv', 'acquia_spi_module_diff_data', 'acquia_spi_send_watchdog', 'acquia_spi_use_cron', 'cache_inc', 'cacherouter', 'googleanalytics_cache', 'error_level', 'preprocess_js', 'page_cache_maximum_age', 'block_cache', 'preprocess_css', 'page_compression', 'cache', 'cache_lifetime', 'cron_last', 'clean_url', 'redirect_global_clean', 'theme_zen_settings', 'site_offline', 'site_name', 'user_register', 'user_signatures', 'filter_default_format', 'filter_html_1', 'filter_html_2', 'poormanscron_interval', 'dblog_row_limit', 'install_profile', 'user_email_verification');
+  $spi_def_vars = variable_get('acquia_spi_def_vars', array());
+  $waived_spi_def_vars = variable_get('acquia_spi_def_waived_vars', array());
+  // Merge hard coded $variables with vars from SPI definition.
+  foreach($spi_def_vars as $var_name => $var) {
+    if (!in_array($var_name, $waived_spi_def_vars) && !in_array($var_name, $variables)) {
+      $variables[] = $var_name;
+    }
+  }
   // Add comment settings for node types.
   $types = node_get_types();
   if (!empty($types)) {
@@ -678,13 +768,19 @@ function acquia_spi_get_variables_data() {
       $data[$name] = $conf[$name];
     }
   }
+  // Exception handling.
   if (module_exists('globalredirect') && function_exists('_globalredirect_get_settings')) {
     // Explicitly get Global Redirect settings since it deletes its variable
     // if the settings match the defaults.
     $data['globalredirect_settings'] = _globalredirect_get_settings();
   }
-  // Collapse to JSON string to simplify transport. NSPI server will not
-  // re-encode for storage.
+  // Unset waived vars so they won't be sent to NSPI.
+  foreach($data as $var_name => $var) {
+    if (in_array($var_name, $waived_spi_def_vars)) {
+      unset($data[$var_name]);
+    }
+  }
+  // Collapse to JSON string to simplify transport.
   return _acquia_spi_json($data);
 }
 
