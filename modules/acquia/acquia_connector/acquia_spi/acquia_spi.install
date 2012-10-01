@@ -40,7 +40,7 @@ function acquia_spi_requirements($phase) {
       $has_credentials = acquia_agent_has_credentials();
 
       if ($has_credentials) {
-        $key = md5(acquia_agent_settings('acquia_key') . '-spi-send-' . drupal_get_private_key());
+        $key = sha1(drupal_get_private_key());
         $config_url = $description = $interval = '';
         $ago = time() - $last_sent;
         if ($ago >= 60 * 60 * 36) { // 1.5 days ago.
