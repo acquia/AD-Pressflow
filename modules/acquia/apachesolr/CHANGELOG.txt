@@ -2,8 +2,11 @@
 Apache Solr Search Integration x.x-x.x, xxxx-xx-xx
 ------------------------------
 
-Apache Solr Search Integration 6.x-1.x, xxxx-xx-xx
+Apache Solr Search Integration 6.x-1.8, 2013-04-10
 ------------------------------
+#1101406 by kenorb: comment out broken tests.
+#1966044 by pwolanin: Fix for Local params in search box unexpectedly affect Solr query parsing.
+#1777102 by cpliakas: Clean up variables on uninstall.
 
 Apache Solr Search Integration 6.x-1.7, 2012-09-21
 ------------------------------
