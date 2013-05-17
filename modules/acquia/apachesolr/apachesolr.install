@@ -150,6 +150,8 @@ function apachesolr_uninstall() {
   variable_del('apachesolr_cron_limit');
   variable_del('apachesolr_enabled_facets');
   variable_del('apachesolr_exclude_nodeapi_types');
+  variable_del('apachesolr_failure');
+  variable_del('apachesolr_read_only');
   // Remove tables.
   drupal_uninstall_schema('apachesolr');
   // Remove blocks.

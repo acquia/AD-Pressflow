@@ -184,9 +184,16 @@ function acquia_spi_form_acquia_agent_settings_form_alter(&$form) {
   if (empty($identifier) && empty($key)) {
     return;
   }
+  // Help documentation is local unless the Help module is disabled.
+  if (module_exists('help')) {
+    $help_url = url('admin/help/acquia_agent');
+  }
+  else {
+    $help_url = url('https://docs.acquia.com/network/install');
+  }
 
   $ssl_available = (in_array('ssl', stream_get_transports(), TRUE) && !defined('ACQUIA_DEVELOPMENT_NOSSL'));
-  $form['connection']['#description'] = t('Allow collection and examination of the following items. <a href="!url">Learn more</a>.', array('!url' => url('admin/help/acquia_agent')));
+  $form['connection']['#description'] = t('Allow collection and examination of the following items. <a href="!url">Learn more</a>.', array('!url' => $help_url));
   
   $form['connection']['spi'] = array(
     '#prefix' => '<div class="acquia-spi">',
@@ -212,7 +219,7 @@ function acquia_spi_form_acquia_agent_settings_form_alter(&$form) {
     '#type' => 'checkbox',
     '#title' => t('Source code'),
     '#default_value' => (int) variable_get('acquia_spi_module_diff_data', 1) && $ssl_available,
-    '#description' => t('Source code analysis requires a SSL connection and for your site to be publicly accessible. <a href="!url">Learn more.</a>', array('!url' => url('admin/help/acquia_agent'))),
+    '#description' => t('Source code analysis requires a SSL connection and for your site to be publicly accessible. <a href="!url">Learn more</a>.', array('!url' => $help_url)),
     '#disabled' => !$ssl_available,
   );
   $use_cron = variable_get('acquia_spi_use_cron', 1);
@@ -876,7 +883,7 @@ function acquia_spi_get_platform() {
   // version being after the slash.
   preg_match('!^([^/]+)(/.+)?$!', $server['SERVER_SOFTWARE'], $webserver);
 
-  if (stristr($webserver[1], 'Apache') && function_exists('apache_get_version')) {
+  if (isset($webserver[1]) && stristr($webserver[1], 'Apache') && function_exists('apache_get_version')) {
     $webserver[2] = apache_get_version();
     $apache_modules = apache_get_modules();
   }

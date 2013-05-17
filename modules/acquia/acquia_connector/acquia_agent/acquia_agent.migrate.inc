@@ -129,6 +129,31 @@ function _acquia_migrate_destination(&$migration) {
 }
 
 /**
+ * Test migration setup and destination.
+ *
+ * @param Array of migration information.
+ *
+ * @return boolean Whether migration can continue.
+ */
+function _acquia_migrate_test_migration_setup(&$migration) {
+  $url = $migration['env']['url'];
+  $headers = array(
+    'User-Agent' => 'Acquia Migrate Client/1.x (Drupal ' . VERSION . ';)',
+  );
+  $response = drupal_http_request($url, $headers, 'GET', NULL, 1, 10.0);
+  if ($response->code != 200) {
+    $migration['error'] = t('Unable to connect to migration destination site, please contact Acquia Support.');
+    return FALSE;
+  }
+  // A 200 response with body 'invalid request' is returned from the AH_UPLOAD
+  // script if receiving a GET request.
+  if (strpos($url, 'AH_UPLOAD') !== FALSE && trim($response->data) != 'invalid request') {
+    $migration['error'] = t('Unable to connect to migration destination site, please contact Acquia Support.');
+    return FALSE;
+  }
+}
+
+/**
  * Complete migration tasks.
  */
 function _acquia_migrate_complete(&$migration) {
@@ -162,6 +187,26 @@ function _acquia_migrate_complete(&$migration) {
   return $migration;
 }
 
+function acquia_migrate_batch_test($migration, &$context) {
+  _acquia_migrate_process_setup();
+  // Latest migration might be in $context.
+  if (!empty($context['results']['migration'])) {
+    $migration = $context['results']['migration'];
+    variable_set('acquia_agent_cloud_migration', $migration);
+  }
+  // Check for error and abort if appropriate.
+  if (empty($migration) || $migration['error'] !== FALSE) {
+    $context['message'] = t('Encountered error, aborting migration.');
+    return;
+  }
+
+  _acquia_migrate_test_migration_setup($migration);
+
+  // Store migration in results so it can be used by next operation.
+  $context['results']['migration'] = $migration;
+  $context['message'] = t('Testing migration capabilities');
+}
+
 function acquia_migrate_batch_db($migration, &$context) {
   _acquia_migrate_process_setup();
   // Latest migration might be in $context.
@@ -169,9 +214,9 @@ function acquia_migrate_batch_db($migration, &$context) {
     $migration = $context['results']['migration'];
     variable_set('acquia_agent_cloud_migration', $migration);
   }
-  // Check for error and hault.
+  // Check for error and abort if appropriate.
   if (empty($migration) || $migration['error'] !== FALSE) {
-    $context['message'] = t('Encountered error, haulting');
+    $context['message'] = t('Encountered error, aborting migration.');
     return;
   }
 
@@ -189,9 +234,9 @@ function acquia_migrate_batch_tar($migration, &$context) {
     $migration = $context['results']['migration'];
     variable_set('acquia_agent_cloud_migration', $migration);
   }
-  // Check for error and hault.
+  // Check for error and abort if appropriate.
   if (empty($migration) || $migration['error'] !== FALSE) {
-    $context['message'] = t('Encountered error, haulting');
+    $context['message'] = t('Encountered error, aborting migration.');
     return;
   }
 
@@ -209,9 +254,9 @@ function acquia_migrate_batch_transmit($migration, &$context) {
     $migration = $context['results']['migration'];
     variable_set('acquia_agent_cloud_migration', $migration);
   }
-  // Check for error and hault.
+  // Check for error and abort if appropriate.
   if (empty($migration) || $migration['error'] !== FALSE) {
-    $context['message'] = t('Encountered error, haulting');
+    $context['message'] = t('Encountered error, aborting migration.');
     $context['finished'] = 1;
     return;
   }
@@ -691,7 +736,7 @@ function _acquia_migrate_get_tables_mysql() {
 
 /**
  * Create multipart boundary
- * 
+ *
  * @return
  *   Boundary
  */

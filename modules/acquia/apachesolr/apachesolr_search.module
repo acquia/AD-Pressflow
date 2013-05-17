@@ -125,6 +125,12 @@ function apachesolr_search_search($op = 'search', $keys = NULL) {
       $filters = isset($_GET['filters']) ? $_GET['filters'] : '';
       $solrsort = isset($_GET['solrsort']) ? $_GET['solrsort'] : '';
       $page = isset($_GET['page']) ? $_GET['page'] : 0;
+      if ($keys) {
+        // Don't allow local params to pass through to EDismax from the url.
+        // We also remove any remaining leading {! since that causes a parse
+        // error in Solr.
+        $keys = preg_replace('/^(?:{![^}]*}\s*)*(?:{!\s*)*/',' ', $keys);
+      }
       try {
         $results = apachesolr_search_execute($keys, $filters, $solrsort, 'search/' . arg(1), $page);
         return $results;
