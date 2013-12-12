@@ -5,12 +5,6 @@ core = 6.x
 base theme = garland
 stylesheets[all][] = minnelli.css
 
-; Information added by drupal.org packaging script on 2013-01-16
-version = "6.28"
-project = "drupal"
-datestamp = "1358370963"
-
-
 ; Information added by Acquia.com packaging script
 acquia = "1"
 

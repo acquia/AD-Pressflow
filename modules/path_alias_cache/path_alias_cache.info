@@ -2,3 +2,7 @@ name = Path alias cache
 description = A path alias implementation which adds a cache to the core version.
 core = 6.x
 package = Pressflow
+
+; Information added by Acquia.com packaging script
+acquia = "1"
+

@@ -1,12 +1,13 @@
 name = Mollom
 description = Automatically moderates user-submitted content and protects your site from spam and profanity.
 core = 6.x
+php = 5.2.4
 
-; Information added by drupal.org packaging script on 2011-07-09
-version = "6.x-1.16"
+; Information added by  packaging script on 2013-11-10
+version = "6.x-2.6"
 core = "6.x"
 project = "mollom"
-datestamp = "1310217719"
+datestamp = "1384108705"
 
 
 ; Information added by Acquia.com packaging script
