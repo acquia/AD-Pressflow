@@ -439,7 +439,8 @@ function install_settings_form_submit($form, &$form_state) {
  * Find all .profile files.
  */
 function install_find_profiles() {
-  return file_scan_directory('./profiles', '\.profile$', array('.', '..', 'CVS'), 0, TRUE, 'name', 0);
+  // Ignore the default profile so acquia is the default.
+  return file_scan_directory('./profiles', '\.profile$', array('.', '..', 'CVS', 'default'), 0, TRUE, 'name', 0);
 }
 
 /**

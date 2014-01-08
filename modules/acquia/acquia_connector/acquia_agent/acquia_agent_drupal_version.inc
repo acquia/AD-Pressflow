@@ -20,4 +20,4 @@ define('IS_ACQUIA_DRUPAL', TRUE);
 define('ACQUIA_DRUPAL_VERSION' , '1.2.54 (Drupal 6.29 core from Pressflow)');
 define('ACQUIA_DRUPAL_SERIES'  , '1.0-pressflow');
 define('ACQUIA_DRUPAL_BRANCH'  , '1.x-6.x');
-define('ACQUIA_DRUPAL_REVISION', '6022');
+define('ACQUIA_DRUPAL_REVISION', '6046');
