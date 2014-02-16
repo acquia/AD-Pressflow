@@ -1,5 +1,4 @@
 <?php
-// $Id$
 
 /**
  * @file
@@ -18,4 +17,30 @@ function tagadelic_update_6100() {
   $ret[] = update_sql("DELETE FROM {cache} WHERE cid LIKE 'tagadelic_cache_%'");
 
   return $ret;
+}
+
+/**
+ * Check for modules that implement node_grants.
+ */
+function tagadelic_requirements($phase) {
+  $requirements = array();
+
+  if ($phase == 'runtime') {
+
+    $requirements['tagadelic'] = array();
+
+    if (module_implements('node_grants')) {    
+      $requirements['tagadelic']['severity'] = REQUIREMENT_WARNING;
+      $requirements['tagadelic']['title'] = t('Tagadelic');
+      $requirements['tagadelic']['value'] = t('One or more incompatible modules are enabled.');
+      $requirements['tagadelic']['description'] = t('The Tagadelic 1.x branch is not compatible with content-access modules like node-access, domain-access, or taxonomy-access.');
+    }
+    else {
+      $requirements['tagadelic']['severity'] = REQUIREMENT_OK;
+      $requirements['tagadelic']['title'] = t('Tagadelic');
+      $requirements['tagadelic']['value'] = t('No incompatible modules enabled.');
+    }    
+  }
+
+  return $requirements;
 }
