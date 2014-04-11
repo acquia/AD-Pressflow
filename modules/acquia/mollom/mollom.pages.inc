@@ -109,7 +109,7 @@ function mollom_report_form_submit($form, &$form_state) {
 
     // Send feedback to Mollom, if we have session data.
     if ((!empty($data->contentId) || !empty($data->captchaId)) && !empty($form_state['values']['mollom']['feedback'])) {
-      if (_mollom_send_feedback($data, $form_state['values']['mollom']['feedback'])) {
+      if (_mollom_send_feedback($data, $form_state['values']['mollom']['feedback'], 'moderate', 'mollom_report_form_submit')) {
         drupal_set_message(t('The content was successfully reported as inappropriate.'));
       }
     }

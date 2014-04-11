@@ -13,7 +13,7 @@ define('PRINT_PDF_FORMAT', 'pdf');
 
 define('PRINT_PDF_LIB_PATH', 'sites/all/libraries');
 
-define('PRINT_PDF_LINK_POS_DEFAULT', '{ "link": "link", "block": "block", "help": "help" }');
+define('PRINT_PDF_LINK_POS_DEFAULT', serialize(array('link' => 'link', 'block' => 'block', 'help' => 'help')));
 define('PRINT_PDF_LINK_TEASER_DEFAULT', 0);
 define('PRINT_PDF_SHOW_LINK_DEFAULT', 1);
 define('PRINT_PDF_NODE_LINK_VISIBILITY_DEFAULT', 0);
@@ -300,7 +300,7 @@ function print_pdf_requirements($phase) {
  * Implementation of hook_link().
  */
 function print_pdf_link($type, $node = NULL, $teaser = FALSE) {
-  $print_pdf_link_pos = variable_get('print_pdf_link_pos', json_decode(PRINT_PDF_LINK_POS_DEFAULT, TRUE));
+  $print_pdf_link_pos = variable_get('print_pdf_link_pos', unserialize(PRINT_PDF_LINK_POS_DEFAULT));
   $print_pdf_link_use_alias = variable_get('print_pdf_link_use_alias', PRINT_PDF_LINK_USE_ALIAS_DEFAULT);
   $allowed_type = print_pdf_link_allowed(array('type' => $type, 'node' => $node, 'teaser' => $teaser));
   if (($allowed_type) && !empty($print_pdf_link_pos['link'])) {
@@ -352,7 +352,7 @@ function print_pdf_link($type, $node = NULL, $teaser = FALSE) {
  * Implementation of hook_help().
  */
 function print_pdf_help($path, $arg) {
-  $print_pdf_link_pos = variable_get('print_pdf_link_pos', json_decode(PRINT_PDF_LINK_POS_DEFAULT, TRUE));
+  $print_pdf_link_pos = variable_get('print_pdf_link_pos', unserialize(PRINT_PDF_LINK_POS_DEFAULT));
   if (($path !== 'node/%') && !(empty($print_pdf_link_pos['help']))) {
     static $output = FALSE;
 
@@ -374,7 +374,7 @@ function print_pdf_nodeapi(&$node, $op = 'view', $teaser, $page) {
   switch ($op) {
     case 'view':
       // Insert content corner links
-      $print_pdf_link_pos = variable_get('print_pdf_link_pos', json_decode(PRINT_PDF_LINK_POS_DEFAULT, TRUE));
+      $print_pdf_link_pos = variable_get('print_pdf_link_pos', unserialize(PRINT_PDF_LINK_POS_DEFAULT));
       if (($teaser === FALSE) && !empty($print_pdf_link_pos['corner']) &&
           isset($node->build_mode) && ($node->build_mode === NODE_BUILD_NORMAL)) {
         $node->content['print_links']['#value'] .= print_pdf_insert_link(NULL, $node);
@@ -649,19 +649,22 @@ function _print_pdf_tcpdf_version() {
   require_once($print_pdf_pdf_tool);
 
   // Hide warnings, as some TCPDF constants may still be undefined
-  @$pdf = new TCPDF();
+  if (class_exists('TCPDF')) {
+    @$pdf = new TCPDF();
 
-  if (method_exists($pdf, 'getTCPDFVersion')) {
-    return $pdf->getTCPDFVersion();
-  }
-  elseif (defined('PDF_PRODUCER')) {
-    sscanf(PDF_PRODUCER, "TCPDF %s", $version);
+    if (class_exists('TCPDF_STATIC')) {
+      return TCPDF_STATIC::getTCPDFVersion();
+    }
+    elseif (method_exists($pdf, 'getTCPDFVersion')) {
+      return $pdf->getTCPDFVersion();
+    }
+    elseif (defined('PDF_PRODUCER')) {
+      sscanf(PDF_PRODUCER, "TCPDF %s", $version);
 
-    return $version;
+      return $version;
+    }
   }
-  else {
-    return 'unknown';
-  }
+  return 'unknown';
 }
 
 /**

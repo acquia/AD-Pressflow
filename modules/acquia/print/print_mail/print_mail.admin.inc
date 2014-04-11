@@ -27,7 +27,7 @@ function print_mail_settings() {
   $form['settings']['print_mail_link_pos'] = array(
     '#type' => 'checkboxes',
     '#title' => t('Send by email link'),
-    '#default_value' => variable_get('print_mail_link_pos', json_decode(PRINT_MAIL_LINK_POS_DEFAULT, TRUE)),
+    '#default_value' => variable_get('print_mail_link_pos', unserialize(PRINT_MAIL_LINK_POS_DEFAULT)),
     '#options' => array('link' => t('Links area'), 'corner' => t('Content corner'), 'block' => t('Block'), 'help' => t('Help area')),
     '#description' => t('Choose the location of the link(s) to the send by email page. The Links area is usually below the node content, whereas the Content corner is placed in the upper-right corner of the node content. Unselect all options to disable the link. Even if the link is disabled, you can still send a node by email by going to !path/nid where nid is the numeric id of the node.', array('!path' => PRINTMAIL_PATH)),
   );

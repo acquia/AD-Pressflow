@@ -11,7 +11,7 @@ define('PRINTMAIL_PATH', 'printmail');
 
 define('PRINT_MAIL_FORMAT', 'mail');
 
-define('PRINT_MAIL_LINK_POS_DEFAULT', '{ "link": "link", "block": "block", "help": "help" }');
+define('PRINT_MAIL_LINK_POS_DEFAULT', serialize(array('link' => 'link', 'block' => 'block', 'help' => 'help')));
 define('PRINT_MAIL_LINK_TEASER_DEFAULT', 0);
 define('PRINT_MAIL_SHOW_LINK_DEFAULT', 1);
 define('PRINT_MAIL_NODE_LINK_VISIBILITY_DEFAULT', 0);
@@ -134,7 +134,7 @@ function print_mail_block($op = 'list', $delta = 0, $edit = array()) {
  * Implementation of hook_link().
  */
 function print_mail_link($type, $node = NULL, $teaser = FALSE) {
-  $print_mail_link_pos = variable_get('print_mail_link_pos', json_decode(PRINT_MAIL_LINK_POS_DEFAULT, TRUE));
+  $print_mail_link_pos = variable_get('print_mail_link_pos', unserialize(PRINT_MAIL_LINK_POS_DEFAULT));
   $print_mail_link_use_alias = variable_get('print_mail_link_use_alias', PRINT_MAIL_LINK_USE_ALIAS_DEFAULT);
   $allowed_type = print_mail_link_allowed(array('type' => $type, 'node' => $node, 'teaser' => $teaser));
   if (($allowed_type) && !empty($print_mail_link_pos['link'])) {
@@ -186,7 +186,7 @@ function print_mail_link($type, $node = NULL, $teaser = FALSE) {
  * Implementation of hook_help().
  */
 function print_mail_help($path, $arg) {
-  $print_mail_link_pos = variable_get('print_mail_link_pos', json_decode(PRINT_MAIL_LINK_POS_DEFAULT, TRUE));
+  $print_mail_link_pos = variable_get('print_mail_link_pos', unserialize(PRINT_MAIL_LINK_POS_DEFAULT));
   if (($path !== 'node/%') && !(empty($print_mail_link_pos['help']))) {
     static $output = FALSE;
 
@@ -208,7 +208,7 @@ function print_mail_nodeapi(&$node, $op = 'view', $teaser, $page) {
   switch ($op) {
     case 'view':
       // Insert content corner links
-      $print_mail_link_pos = variable_get('print_mail_link_pos', json_decode(PRINT_MAIL_LINK_POS_DEFAULT, TRUE));
+      $print_mail_link_pos = variable_get('print_mail_link_pos', unserialize(PRINT_MAIL_LINK_POS_DEFAULT));
       if (($teaser === FALSE) && !empty($print_mail_link_pos['corner']) &&
           isset($node->build_mode) && ($node->build_mode === NODE_BUILD_NORMAL)) {
         $node->content['print_links']['#value'] .= print_mail_insert_link(NULL, $node);

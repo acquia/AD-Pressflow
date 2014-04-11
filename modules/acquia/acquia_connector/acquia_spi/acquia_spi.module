@@ -1119,7 +1119,7 @@ function acquai_spi_get_404s() {
 function acquia_spi_get_variables_data() {
   global $conf;
   $data = array();
-  $variables = array('acquia_spi_send_node_user', 'acquia_spi_admin_priv', 'acquia_spi_module_diff_data', 'acquia_spi_send_watchdog', 'acquia_spi_use_cron', 'cache_inc', 'cacherouter', 'googleanalytics_cache', 'error_level', 'preprocess_js', 'page_cache_maximum_age', 'block_cache', 'preprocess_css', 'page_compression', 'cache', 'cache_lifetime', 'cron_last', 'clean_url', 'redirect_global_clean', 'theme_zen_settings', 'site_offline', 'site_name', 'user_register', 'user_signatures', 'filter_default_format', 'filter_html_1', 'filter_html_2', 'poormanscron_interval', 'dblog_row_limit', 'install_profile', 'user_email_verification');
+  $variables = array('acquia_spi_send_node_user', 'acquia_spi_admin_priv', 'acquia_spi_module_diff_data', 'acquia_spi_send_watchdog', 'acquia_spi_use_cron', 'cache_inc', 'cacherouter', 'googleanalytics_cache', 'error_level', 'preprocess_js', 'page_cache_max_age', 'block_cache', 'preprocess_css', 'page_compression', 'cache', 'cache_lifetime', 'cron_last', 'clean_url', 'redirect_global_clean', 'theme_zen_settings', 'site_offline', 'site_name', 'user_register', 'user_signatures', 'filter_default_format', 'filter_html_1', 'filter_html_2', 'poormanscron_interval', 'dblog_row_limit', 'install_profile', 'user_email_verification');
   $spi_def_vars = variable_get('acquia_spi_def_vars', array());
   $waived_spi_def_vars = variable_get('acquia_spi_def_waived_vars', array());
   // Merge hard coded $variables with vars from SPI definition.
@@ -1692,5 +1692,5 @@ function acquia_spi_set_variables($set_variables) {
 function acquia_spi_approved_set_variables() {
   // acquia_spi_set_variables_automatic is in here so that if
   // acquia_spi_set_variables_override is TRUE then it can be automatically set.
-  return variable_get('acquia_spi_set_variables_automatic', array('acquia_spi_set_variables_automatic', 'error_level', 'preprocess_js', 'page_cache_maximum_age', 'block_cache', 'preprocess_css', 'page_compression', 'cache', 'cache_lifetime', 'googleanalytics_cache', 'acquia_spi_send_node_user', 'acquia_spi_admin_priv', 'acquia_spi_module_diff_data', 'acquia_spi_send_watchdog', 'acquia_spi_use_cron'));
+  return variable_get('acquia_spi_set_variables_automatic', array('acquia_spi_set_variables_automatic', 'error_level', 'preprocess_js', 'page_cache_max_age', 'block_cache', 'preprocess_css', 'page_compression', 'cache', 'cache_lifetime', 'googleanalytics_cache', 'acquia_spi_send_node_user', 'acquia_spi_admin_priv', 'acquia_spi_module_diff_data', 'acquia_spi_send_watchdog', 'acquia_spi_use_cron'));
 }

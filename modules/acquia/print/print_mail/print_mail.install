@@ -332,7 +332,7 @@ function print_mail_update_6100() {
 function print_mail_update_6118() {
   $ret = array();
 
-  $link_pos = variable_get('print_mail_link_pos', json_decode('{ "link": "link", "block": "block", "help": "help" }', TRUE));
+  $link_pos = variable_get('print_mail_link_pos', array('link' => 'link', 'block' => 'block', 'help' => 'help'));
   $link_pos['block'] = 'block';
   $link_pos['help'] = 'help';
   variable_set('print_mail_link_pos', $link_pos);

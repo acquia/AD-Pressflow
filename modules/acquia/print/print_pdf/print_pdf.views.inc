@@ -7,6 +7,10 @@
  * @ingroup print
  */
 
+// Views join handlers aren't truly handlers according to [#540128]
+// so they need to be specifically included here.
+module_load_include('inc', 'print', 'print_join_page_counter');
+
 /**
  * Implements hook_views_data().
  */
@@ -33,7 +37,7 @@ function print_pdf_views_data() {
     'left_field' => 'nid',
     'field' => 'path',
 //    'type' => 'INNER',
-    'handler' => 'print_pdf_join_page_counter',
+    'handler' => 'print_join_page_counter',
   );
 
   // print_pdf_node_conf fields

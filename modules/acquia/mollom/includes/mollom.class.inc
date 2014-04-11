@@ -63,6 +63,70 @@ abstract class Mollom {
   const TIME_OFFSET_MAX = 300;
 
   /**
+   * List of ISO 639-1 language codes supported by Mollom.
+   *
+   * If your application has a predefined list of ISO 639-1 languages already,
+   * intersect your list with this via strtok($langcode, '-').
+   *
+   * Should be a constant, but PHP does not support arrays for constants.
+   */
+  public static $LANGUAGES_SUPPORTED = array(
+    'af',
+    'ar',
+    'bg',
+    'bn',
+    'cs',
+    'da',
+    'de',
+    'el',
+    'en',
+    'es',
+    'et',
+    'fa',
+    'fi',
+    'fr',
+    'gu',
+    'he',
+    'hi',
+    'hr',
+    'hu',
+    'id',
+    'it',
+    'ja',
+    'kn',
+    'ko',
+    'lt',
+    'lv',
+    'mk',
+    'ml',
+    'mr',
+    'ne',
+    'nl',
+    'no',
+    'pa',
+    'pl',
+    'pt',
+    'ro',
+    'ru',
+    'sk',
+    'sl',
+    'so',
+    'sq',
+    'sv',
+    'sw',
+    'ta',
+    'te',
+    'th',
+    'tl',
+    'tr',
+    'uk',
+    'ur',
+    'vi',
+    'zh-cn',
+    'zh-tw',
+  );
+
+  /**
    * The public Mollom API key to use for request authentication.
    *
    * @var string
@@ -186,6 +250,7 @@ abstract class Mollom {
    *   The configuration setting name to load, one of:
    *   - publicKey: The public API key for Mollom authentication.
    *   - privateKey: The private API key for Mollom authentication.
+   *   - expectedLanguages: List of expected language codes for site content.
    *
    * @return mixed
    *   The stored configuration value or NULL if there is none.
@@ -517,8 +582,8 @@ abstract class Mollom {
       $this->lastResponseCode = TRUE;
       // No message is logged in case of success.
       $this->log[] = array(
-        'severity' => 'debug',
-      ) + $request_info;
+          'severity' => 'debug',
+        ) + $request_info;
 
       return $response->data;
     }
@@ -766,7 +831,14 @@ abstract class Mollom {
 
       // Recurse into children.
       if (is_array($value)) {
-        $params[] = self::httpBuildQuery($value, $key);
+        if (!empty($value)) {
+          $params[] = self::httpBuildQuery($value, $key);
+        }
+        // An empty array means that the parameter accepts a list of values, but
+        // the list is empty and no value should be assigned, so pass NULL.
+        else {
+          $params[] = $key . '=';
+        }
       }
       // If a query parameter value is NULL, only append its key, followed by
       // "=" (3.4.1.3.2).
@@ -923,8 +995,6 @@ abstract class Mollom {
    *   - privateKey: The private Mollom API key of the site.
    *   - url: The URL of the site.
    *   - email: The e-mail address of the primary contact of the site.
-   *   - languages: (optional) An array of language ISO codes, content is
-   *     expected to submitted in on the site.
    *   - platformName: (optional) The name of the platform running the site
    *     (e.g., "Drupal").
    *   - platformVersion: (optional) The version of the platform running the
@@ -933,6 +1003,8 @@ abstract class Mollom {
    *     (e.g., "Mollom").
    *   - clientVersion: (optional) The version of the Mollom client plugin used
    *     (e.g., "6.15").
+   *   - expectedLanguages: (optional) An array of language ISO codes, content
+   *     is expected to be submitted in on the site.
    *   On failure, the error response code returned by the server.
    */
   public function getSite($publicKey = NULL) {
@@ -972,7 +1044,7 @@ abstract class Mollom {
    * and may need to set other site properties.
    *
    * @param array $data
-   *   An associative array of properties to set for the site. See
+   *   (optional) An associative array of properties to set for the site. See
    *   Mollom::getSite() for details.
    * @param string $publicKey
    *   (optional) The public Mollom API key of the site to update. Defaults to
@@ -1074,6 +1146,8 @@ abstract class Mollom {
    *   - contextTitle: The title of the parent/context content of the stored
    *     content; e.g., the title of the article or forum thread a comment is
    *     posted on (not the parent comment that was replied to).
+   *   - trackingImageId: An optional string identifier used to request an
+   *     image beacon.  This is used for form behavior analysis.
    *
    * @return mixed
    *   On success, an associative array representing the full content record,
@@ -1335,6 +1409,29 @@ abstract class Mollom {
     $result = $this->query('POST', $path);
     return $this->lastResponseCode === TRUE;
   }
+
+  /**
+   * Generates a URL to a tracking image.
+   *
+   * This image can be used by form behavior analysis to analyze the
+   * humanity of the content author.
+   *
+   * @return array
+   *   An associative array of tracking information generated.
+   *   - tracking_url: the url to the tracking image (without any http protocol)
+   *   - tracking_id: the tracking id generated
+   */
+  public function getTrackingImage() {
+    $public_key = $this->publicKey;
+    $ts = time();
+    $tracking_id = hash_hmac('sha1', $public_key . $ts, $this->privateKey);
+
+    $result = array(
+      'tracking_url' => '//' . $this->server . '/v1/tracking/' . urlencode($tracking_id) . '.png?public_key=' . $public_key . "&timestamp=" . $ts,
+      'tracking_id' => $tracking_id,
+    );
+    return $result;
+  }
 }
 
 /**
@@ -1483,4 +1580,3 @@ class MollomResponseException extends MollomException {
    */
   protected $severity = 'debug';
 }
-

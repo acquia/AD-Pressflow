@@ -7,6 +7,10 @@
  * @ingroup print
  */
 
+// Views join handlers aren't truly handlers according to [#540128]
+// so they need to be specifically included here.
+module_load_include('inc', 'print', 'print_join_page_counter');
+
 /**
  * Implements hook_views_data().
  */

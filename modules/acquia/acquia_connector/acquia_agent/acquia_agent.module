@@ -232,6 +232,10 @@ function acquia_agent_check_subscription($params = array()) {
           return $current_subscription;
       }
     }
+    elseif ($subscription === FALSE) {
+      // Occurs when response validation failed so do not invoke status update.
+      return $current_subscription;
+    }
     variable_set('acquia_subscription_data', $subscription);
     // Check if our main subscription is active
     if ($subscription) {

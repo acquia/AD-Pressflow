@@ -41,12 +41,12 @@ function print_pdf_controller() {
     $pdf_filename = variable_get('print_pdf_filename', PRINT_PDF_FILENAME_DEFAULT);
     if (module_exists('token')) {
       if (!empty($pdf_filename) && !empty($node)) {
-        $pdf_filename = token_replace($pdf_filename, 'node', $node);
+        $pdf_filename = token_replace($pdf_filename, 'node', $node, TOKEN_PREFIX, TOKEN_SUFFIX, array('clear' => TRUE));
       }
       else {
-        $pdf_filename = token_replace($pdf_filename, 'global');
-        if (empty($pdf_filename) || count(token_scan($pdf_filename))) {
-          // If there are still tokens, use a fallback solution
+        $pdf_filename = token_replace($pdf_filename, 'global', NULL, TOKEN_PREFIX, TOKEN_SUFFIX, array('clear' => TRUE));
+        if (empty($pdf_filename)) {
+          // If empty, use a fallback solution
           $pdf_filename = str_replace('/', '_', $path);
         }
       }
@@ -184,11 +184,11 @@ function _print_pdf_dompdf($print, $html, $filename = NULL) {
   $print_pdf_content_disposition = variable_get('print_pdf_content_disposition', PRINT_PDF_CONTENT_DISPOSITION_DEFAULT);
 
   if (variable_get('print_pdf_autoconfig', PRINT_PDF_AUTOCONFIG_DEFAULT)) {
-    define("DOMPDF_ENABLE_PHP", FALSE);
-    define("DOMPDF_ENABLE_REMOTE", TRUE);
-    define("DOMPDF_TEMP_DIR", file_directory_temp());
-    define("DOMPDF_UNICODE_ENABLED", variable_get('print_pdf_dompdf_unicode', PRINT_PDF_DOMPDF_UNICODE_DEFAULT));
-    define("DOMPDF_FONT_CACHE", file_directory_path() . '/' . PRINT_PDF_DOMPDF_CACHE_DIR_DEFAULT . '/fonts/');
+    if (!defined('DOMPDF_ENABLE_PHP')) define("DOMPDF_ENABLE_PHP", FALSE);
+    if (!defined('DOMPDF_ENABLE_REMOTE')) define("DOMPDF_ENABLE_REMOTE", TRUE);
+    if (!defined('DOMPDF_TEMP_DIR')) define("DOMPDF_TEMP_DIR", file_directory_temp());
+    if (!defined('DOMPDF_UNICODE_ENABLED')) define("DOMPDF_UNICODE_ENABLED", variable_get('print_pdf_dompdf_unicode', PRINT_PDF_DOMPDF_UNICODE_DEFAULT));
+    if (!defined('DOMPDF_FONT_CACHE')) define("DOMPDF_FONT_CACHE", file_directory_path() . '/' . PRINT_PDF_DOMPDF_CACHE_DIR_DEFAULT . '/fonts/');
   }
 
   require_once($print_pdf_pdf_tool);
@@ -242,6 +242,10 @@ function _print_pdf_dompdf($print, $html, $filename = NULL) {
   }
   $html = htmlspecialchars_decode(htmlentities($html, ENT_NOQUOTES, 'ISO-8859-1'), ENT_NOQUOTES);
   }
+  else {
+    // Otherwise, ensure the content is properly formatted Unicode.
+    $html = mb_convert_encoding($html, 'HTML-ENTITIES', 'UTF-8');
+  }
 
   // Must get rid of tbody (dompdf goes into recursion)
   $html = preg_replace('!<tbody[^>]*?>|</tbody>!i', '', $html);
@@ -280,15 +284,15 @@ function _print_pdf_tcpdf($print, $html, $filename = NULL) {
   $pdf_tool_path = realpath(dirname($print_pdf_pdf_tool));
 
   if (variable_get('print_pdf_autoconfig', PRINT_PDF_AUTOCONFIG_DEFAULT)) {
-    define('K_TCPDF_EXTERNAL_CONFIG', TRUE);
-    define('K_PATH_MAIN', dirname($_SERVER['SCRIPT_FILENAME']));
-    define('K_PATH_URL', $base_url);
-    define('K_PATH_FONTS', $pdf_tool_path .'/fonts/');
-    define('K_PATH_CACHE', file_directory_path() . '/' . PRINT_PDF_TCPDF_CACHE_DIR_DEFAULT . '/cache/');
-    define('K_PATH_IMAGES', '');
-    define('K_BLANK_IMAGE', $pdf_tool_path .'/images/_blank.png');
-    define('K_CELL_HEIGHT_RATIO', 1.25);
-    define('K_SMALL_RATIO', 2/3);
+    if (!defined('K_TCPDF_EXTERNAL_CONFIG')) define('K_TCPDF_EXTERNAL_CONFIG', TRUE);
+    if (!defined('K_PATH_MAIN')) define('K_PATH_MAIN', dirname($_SERVER['SCRIPT_FILENAME']));
+    if (!defined('K_PATH_URL')) define('K_PATH_URL', $base_url);
+    if (!defined('K_PATH_FONTS')) define('K_PATH_FONTS', $pdf_tool_path .'/fonts/');
+    if (!defined('K_PATH_CACHE')) define('K_PATH_CACHE', file_directory_path() . '/' . PRINT_PDF_TCPDF_CACHE_DIR_DEFAULT . '/cache/');
+    if (!defined('K_PATH_IMAGES')) define('K_PATH_IMAGES', '');
+    if (!defined('K_BLANK_IMAGE')) define('K_BLANK_IMAGE', $pdf_tool_path .'/images/_blank.png');
+    if (!defined('K_CELL_HEIGHT_RATIO')) define('K_CELL_HEIGHT_RATIO', 1.25);
+    if (!defined('K_SMALL_RATIO')) define('K_SMALL_RATIO', 2/3);
   }
 
   // Try to use local file access for image files
@@ -298,7 +302,7 @@ function _print_pdf_tcpdf($print, $html, $filename = NULL) {
   $pattern = "!<img\s[^>]*?src\s*?=\s*?['\"]?{$base_url}[^>]*?>!is";
   $html = preg_replace_callback($pattern, create_function('$matches', 'return html_entity_decode($matches[0], ENT_QUOTES);'), $html);
   // Remove queries from the image URL
-  $pattern = "!(<img\s[^>]*?src\s*?=\s*?['\"]?{$base_url}[^>]*?)(?:%3F|\?)[\w=&]+([^>]*?>)!is";
+  $pattern = "!(<img\s[^>]*?src\s*?=\s*?['\"]?{$base_url}[^>]*?)(?:%3F|\?)[^\s'\"]+([^>]*?>)!is";
   $html = preg_replace($pattern, '$1$2', $html);
 
   require_once($print_pdf_pdf_tool);
@@ -331,6 +335,7 @@ function _print_pdf_tcpdf($print, $html, $filename = NULL) {
   }
   $pdf->setPDFVersion('1.6');
   $pdf->setFontSubsetting(variable_get('print_pdf_font_subsetting', PRINT_PDF_FONT_SUBSETTING_DEFAULT));
+  $pdf->setTcpdfLink(false);
 
   if ($language->direction == LANGUAGE_RTL) {
     $pdf->setRTL(TRUE);
@@ -383,7 +388,7 @@ function _print_pdf_wkhtmltopdf($print, $html, $filename = NULL) {
   $dpi = 96;
 
   if (function_exists('token_replace') && !empty($print_pdf_wkhtmltopdf_options)) {
-    $print_pdf_wkhtmltopdf_options = token_replace($print_pdf_wkhtmltopdf_options, 'node', $print['node']);
+    $print_pdf_wkhtmltopdf_options = token_replace($print_pdf_wkhtmltopdf_options, 'node', $print['node'], TOKEN_PREFIX, TOKEN_SUFFIX, array('clear' => TRUE));
   }
 
   $version = _print_pdf_wkhtmltopdf_version();
@@ -421,7 +426,7 @@ function _print_pdf_wkhtmltopdf($print, $html, $filename = NULL) {
       if (empty($error)) {
         $error = 'No stderr output available.';
       }
-      watchdog('print_pdf', "wkhtmltopdf (returned $retval): $error");
+      watchdog('print_pdf', 'wkhtmltopdf [%cmd] (returned %ret): %error', array('%cmd' => $cmd, '%ret' => $retval, '%error' => $error));
     }
   }
 
@@ -461,38 +466,43 @@ function _print_pdf_wkhtmltopdf($print, $html, $filename = NULL) {
  */
 function theme_print_pdf_dompdf_footer($html) {
   preg_match('!<div class="print-footer">(.*?)</div>!si', $html, $tpl_footer);
-  $html = str_replace($tpl_footer[0], '', $html);
 
-  $text = '<script type="text/php">
-    if (isset($pdf)) {
-      $font = Font_Metrics::get_font("verdana");;
-      $size = 10;
-      $color = array(0,0,0);
-      $text_height = Font_Metrics::get_font_height($font, $size);
+  if (isset($tpl_footer[1])) {
+    $html = str_replace($tpl_footer[0], '', $html);
 
-      $w = $pdf->get_width();
-      $h = $pdf->get_height();
+    $text = '<script type="text/php">
+      if (isset($pdf)) {
+        $font = Font_Metrics::get_font("verdana");;
+        $size = 10;
+        $color = array(0,0,0);
+        $text_height = Font_Metrics::get_font_height($font, $size);
 
-      $footer = $pdf->open_object();
+        $w = $pdf->get_width();
+        $h = $pdf->get_height();
 
-      // Draw a line along the bottom
-      $y = $h - 25;
-      $pdf->line(15, $y, $w - 15, $y, $color, 1);
+        $footer = $pdf->open_object();
 
-      $y += $text_height / 2;
-      $pdf->page_text(15, $y, \''. addslashes(strip_tags($tpl_footer[1])) .'\', $font, $size, $color);
+        // Draw a line along the bottom
+        $y = $h - 25;
+        $pdf->line(15, $y, $w - 15, $y, $color, 1);
 
-      $pdf->close_object();
-      $pdf->add_object($footer, "all");
+        $y += $text_height / 2;
+        $pdf->page_text(15, $y, \''. addslashes(strip_tags($tpl_footer[1])) .'\', $font, $size, $color);
 
-      // Center the text
-      $width = Font_Metrics::get_text_width("Page 1 of 2", $font, $size);
-      $pagenumtxt = t("Page !n of !total", array("!n" => "{PAGE_NUM}", "!total" => "{PAGE_COUNT}"));
-      $pdf->page_text($w - 15 - $width, $y, $pagenumtxt, $font, $size, $color);
-    }
-  </script>';
+        $pdf->close_object();
+        $pdf->add_object($footer, "all");
 
-  return str_replace("<body>", "<body>" . $text, $html);
+        // Center the text
+        $width = Font_Metrics::get_text_width("Page 1 of 2", $font, $size);
+        $pagenumtxt = t("Page !n of !total", array("!n" => "{PAGE_NUM}", "!total" => "{PAGE_COUNT}"));
+        $pdf->page_text($w - 15 - $width, $y, $pagenumtxt, $font, $size, $color);
+      }
+    </script>';
+
+    return str_replace("<body>", "<body>" . $text, $html);
+  } else {
+    return $html;
+  }
 }
 
 /**
@@ -601,15 +611,17 @@ function theme_print_pdf_tcpdf_content($pdf, $html, $font) {
  */
 function theme_print_pdf_tcpdf_footer($pdf, $html, $font) {
   preg_match('!<div class="print-footer">(.*?)</div>!si', $html, $tpl_footer);
-  $footer = trim(preg_replace('!</?div[^>]*?>!i', '', $tpl_footer[1]));
+  if (isset($tpl_footer[1])) {
+    $footer = trim(preg_replace('!</?div[^>]*?>!i', '', $tpl_footer[1]));
 
-  // set footer font
-  $font[2] *= 0.8;
-  $pdf->setFooterFont($font);
-  // set footer margin
-  $pdf->SetFooterMargin(10);
-  // set footer data
-  $pdf->SetFooterData($footer);
+    // set footer font
+    $font[2] *= 0.8;
+    $pdf->setFooterFont($font);
+    // set footer margin
+    $pdf->SetFooterMargin(10);
+    // set footer data
+    $pdf->setFooterContent($footer);
+  }
 
   return $pdf;
 }

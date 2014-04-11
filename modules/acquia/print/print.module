@@ -51,7 +51,7 @@ define('PRINT_URLS_ANCHORS_DEFAULT', 0);
 define('PRINT_COMMENTS_DEFAULT', 0);
 define('PRINT_NEWWINDOW_DEFAULT', 1);
 
-define('PRINT_HTML_LINK_POS_DEFAULT', '{ "link": "link", "block": "block", "help": "help" }');
+define('PRINT_HTML_LINK_POS_DEFAULT', serialize(array('link' => 'link', 'block' => 'block', 'help' => 'help')));
 define('PRINT_HTML_LINK_TEASER_DEFAULT', 0);
 define('PRINT_HTML_SHOW_LINK_DEFAULT', 1);
 define('PRINT_HTML_NODE_LINK_VISIBILITY_DEFAULT', 0);
@@ -296,7 +296,7 @@ function print_block($op = 'list', $delta = 0, $edit = array()) {
           }
           $block['content'] = '';
           foreach (array('html' => 'print', 'mail' => 'print_mail', 'pdf' => 'print_pdf') as $format => $module) {
-            $link_pos = variable_get('print_' . $format . '_link_pos', json_decode(PRINT_HTML_LINK_POS_DEFAULT, TRUE));
+            $link_pos = variable_get('print_' . $format . '_link_pos', unserialize(PRINT_HTML_LINK_POS_DEFAULT));
 
             if (!(empty($link_pos['block']))) {
               $func = $module . '_insert_link';
@@ -331,7 +331,7 @@ function print_block($op = 'list', $delta = 0, $edit = array()) {
  * Implementation of hook_link().
  */
 function print_link($type, $node = NULL, $teaser = FALSE) {
-  $print_html_link_pos = variable_get('print_html_link_pos', json_decode(PRINT_HTML_LINK_POS_DEFAULT, TRUE));
+  $print_html_link_pos = variable_get('print_html_link_pos', unserialize(PRINT_HTML_LINK_POS_DEFAULT));
   $print_html_link_use_alias = variable_get('print_html_link_use_alias', PRINT_HTML_LINK_USE_ALIAS_DEFAULT);
   $allowed_type = print_link_allowed(array('type' => $type, 'node' => $node, 'teaser' => $teaser));
   if (($allowed_type === PRINT_ALLOW_NORMAL_LINK) && !isset($node->book) && !empty($print_html_link_pos['link'])) {
@@ -377,7 +377,7 @@ function print_link_alter(&$links, $node) {
       $print_html_book_link = variable_get('print_html_book_link', PRINT_HTML_BOOK_LINK_DEFAULT);
 
       if ($print_html_book_link) {
-        $print_html_link_pos = variable_get('print_html_link_pos', json_decode(PRINT_HTML_LINK_POS_DEFAULT, TRUE));
+        $print_html_link_pos = variable_get('print_html_link_pos', unserialize(PRINT_HTML_LINK_POS_DEFAULT));
 
         if (!empty($print_html_link_pos['link'])) {
         $format = theme('print_format_link');
@@ -417,7 +417,7 @@ function print_help($path, $arg) {
       return filter_filter('process', 1, NULL, file_get_contents(drupal_get_path('module', 'print') .'/README.txt') );
   }
 
-  $print_html_link_pos = variable_get('print_html_link_pos', json_decode(PRINT_HTML_LINK_POS_DEFAULT, TRUE));
+  $print_html_link_pos = variable_get('print_html_link_pos', unserialize(PRINT_HTML_LINK_POS_DEFAULT));
   if (($path !== 'node/%') && !(empty($print_html_link_pos['help']))) {
     static $output = FALSE;
 
@@ -446,7 +446,7 @@ function print_nodeapi(&$node, $op = 'view', $teaser, $page) {
         '#suffix' => '</span>',
         '#weight' => -101,
       );
-      $print_html_link_pos = variable_get('print_html_link_pos', json_decode(PRINT_HTML_LINK_POS_DEFAULT, TRUE));
+      $print_html_link_pos = variable_get('print_html_link_pos', unserialize(PRINT_HTML_LINK_POS_DEFAULT));
       if (!empty($print_html_link_pos['corner'])) {
         $node->content['print_links']['#value'] .= print_insert_link(NULL, $node);
       }
