@@ -9,11 +9,11 @@ dependencies[] = apachesolr_search
 dependencies[] = search
 
 
-; Information added by drupal.org packaging script on 2012-09-21
-version = "6.x-1.5702"
+; Information added by Drupal.org packaging script on 2014-07-15
+version = "6.x-1.5704"
 core = "6.x"
 project = "acquia_search"
-datestamp = "1348257666"
+datestamp = "1405431829"
 
 
 ; Information added by Acquia.com packaging script
