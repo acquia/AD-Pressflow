@@ -250,6 +250,7 @@ function mollom_admin_configure_form(&$form_state, $mollom_form = NULL) {
   }
 
   $form['#tree'] = TRUE;
+  drupal_add_js(drupal_get_path('module', 'mollom') . '/mollom.admin.js');
 
   switch ($form_state['storage']['step']) {
     case 'select':
@@ -405,11 +406,14 @@ function mollom_admin_configure_form(&$form_state, $mollom_form = NULL) {
         '#title' => t('When text analysis identifies spam'),
         '#default_value' => $mollom_form['discard'],
         '#options' => array(
-          1 => t('!option <em>(!recommended)</em>', array(
+          1 => t('!option <em class="mollom-recommended">(!recommended)</em>', array(
             '!option' => t('Discard the post'),
             '!recommended' => $recommended,
           )),
-          0 => t('Retain the post for manual moderation'),
+          0 => t('!option <em class="mollom-recommended">(!recommended)</em>', array(
+            '!option' => t('Retain the post for manual moderation'),
+            '!recommended' => $recommended,
+          )),
         ),
         '#required' => $mollom_form['mode'] == MOLLOM_MODE_ANALYSIS,
         // Only possible for forms supporting moderation of unpublished posts.

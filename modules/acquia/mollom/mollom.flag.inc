@@ -150,7 +150,7 @@ function mollom_flag_reason_form(&$form_state, $entity, $id, $detail, $source = 
       '#tree' => TRUE,
     );
     $form['detailset']['detail'] = array(
-      '#value' => '<div class="mollom-report-content">' . $entity_subject . '</div>',
+      '#value' => '<div class="mollom-report-content">' . filter_xss($entity_subject) . '</div>',
     );
   }
 
