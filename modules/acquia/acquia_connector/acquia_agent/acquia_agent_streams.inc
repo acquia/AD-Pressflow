@@ -269,7 +269,7 @@ function acquia_agent_http_request($context, $url, $headers = array(), $method =
 }
 
 /**
- * Determine if a response from the Acquia Network is valid.
+ * Determine if a response from Acquia is valid.
  *
  * @param $data
  *   The data array returned by acquia_agent_call().
@@ -361,4 +361,3 @@ function _acquia_agent_hmac($key, $time, $nonce, $params) {
     return sha1((str_pad($key, 64, chr(0x00)) ^ (str_repeat(chr(0x5c), 64))) . pack("H*", sha1((str_pad($key, 64, chr(0x00)) ^ (str_repeat(chr(0x36), 64))) . $string)));
   }
 }
-

@@ -2,7 +2,7 @@
 
 /**
  * @file
- *   Send site profile information (NSPI) and system data to Acquia Network.
+ *   Send site profile information (NSPI) and system data to Acquia Insight.
  */
 
 // Version of SPI data format.
@@ -63,7 +63,7 @@ function acquia_spi_cron() {
 function acquia_spi_menu() {
   $items['system/acquia-spi-send'] = array(
     'title' => 'Acquia SPI Send',
-    'description' => 'Send SPI data to Acquia Network.',
+    'description' => 'Send SPI data to Acquia Insight.',
     'page callback' => '_acquia_spi_send',
     'access callback' => '_acquia_spi_send_access',
     'type' => MENU_CALLBACK,
@@ -168,7 +168,7 @@ function _acquia_spi_send() {
         $message[] = t('SPI data sent.');
       }
       if (!empty($response['nspi_messages'])) {
-        $message[] = t('Acquia Network returned the following messages. Further information may be in the logs.');
+        $message[] = t('Acquia Insight returned the following messages. Further information may be in the logs.');
         foreach ($response['nspi_messages'] as $nspi_message) {
           $message[] = check_plain($nspi_message);
         }
@@ -334,7 +334,7 @@ function acquia_spi_agent_settings_submit($form, &$form_state) {
 }
 
 /**
- * Gather full SPI data and send to Acquia Network.
+ * Gather full SPI data and send to Acquia Insight.
  *
  * @param string $method Optional identifier for the method initiating request.
  *   Values could be 'cron' or 'menu callback' or 'drush'.
@@ -378,7 +378,7 @@ function acquia_spi_handle_server_response($spi_response) {
 }
 
 /**
- * Send data to Acquia Network.
+ * Send data to Acquia Insight.
  *
  * Note, call acquia_spi_send_full_spi() to support SPI response actions.
  *
@@ -394,7 +394,7 @@ function acquia_spi_handle_server_response($spi_response) {
 function acquia_spi_send_data($spi) {
   // Do nothing unless we have credentials.
   if (!acquia_agent_has_credentials()) {
-    watchdog('acquia spi', 'Connect your site to a valid subscription on the Acquia Network to send SPI data', array(), WATCHDOG_ERROR);
+    watchdog('acquia spi', 'Connect your site to a valid subscription on Acquia Insight to send SPI data', array(), WATCHDOG_ERROR);
     return FALSE;
   }
   // acquia_agent_network_address() sets remote server protocol.
@@ -1677,10 +1677,10 @@ function acquia_spi_set_variables($set_variables) {
   }
   if (!empty($saved)) {
     variable_set('acquia_spi_saved_variables', array('variables' => $saved, 'time' => time()));
-    watchdog('acquia spi', 'Saved variables from the Acquia Network: @variables', array('@variables' => implode(', ', $saved)), WATCHDOG_INFO);
+    watchdog('acquia spi', 'Saved variables from Acquia Insight: @variables', array('@variables' => implode(', ', $saved)), WATCHDOG_INFO);
   }
   else {
-    watchdog('acquia spi', 'Did not save any variables from the Acquia Network.', array(), WATCHDOG_INFO);
+    watchdog('acquia spi', 'Did not save any variables from Acquia Insight.', array(), WATCHDOG_INFO);
   }
 }
 

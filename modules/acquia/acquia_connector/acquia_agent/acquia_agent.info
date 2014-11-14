@@ -1,14 +1,14 @@
 name = Acquia agent
-description = "Allows Drupal to securely communicate with the Acquia Network, and checks for updates to Acquia Drupal."
-package = Acquia Network Connector
+description = "Allows Drupal to securely communicate with Acquia Insight, and checks for updates to Acquia Drupal."
+package = Acquia Connector
 php = 5.2
 core = 6.x
 
-; Information added by Drupal.org packaging script on 2014-04-10
-version = "6.x-2.15"
+; Information added by Drupal.org packaging script on 2014-11-13
+version = "6.x-2.16"
 core = "6.x"
 project = "acquia_connector"
-datestamp = "1397135955"
+datestamp = "1415907501"
 
 
 ; Information added by Acquia.com packaging script

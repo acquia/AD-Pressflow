@@ -603,7 +603,7 @@ function acquia_spi_security_review_check_executable_php($last_check = NULL) {
       $contents = file_get_contents($directory .'/.htaccess');
       // Text from includes/file.inc.
       $expected = "SetHandler Drupal_Security_Do_Not_Remove_See_SA_2006_006\nOptions None\nOptions +FollowSymLinks";
-      if ($contents !== $expected) {
+      if (trim($contents) !== trim($expected)) {
         $result = FALSE;
         $check_result_value[] = 'incorrect_htaccess';
       }
