@@ -506,8 +506,14 @@ abstract class Mollom {
         $response->data = json_decode($response->body, TRUE);
       }
       elseif (strstr($response->headers['content-type'], 'application/xml')) {
-        $response->elements = new SimpleXmlIterator($response->body);
-        $response->data = $this->parseXML($response->elements);
+        try {
+          $response->elements = new SimpleXmlIterator($response->body);
+          $response->data = $this->parseXML($response->elements);
+        }
+        catch (Exception $e) {
+          // Invalid XML so just set the data back to blank.
+          $response->data = array();
+        }
       }
     }
 
@@ -964,9 +970,32 @@ abstract class Mollom {
     }
     if (isset($input)) {
       preg_match_all('@([^, =]+)="([^"]*)"@', $input, $header);
-      $header = array_combine($header[1], $header[2]);
+      if (!empty($header[1]) && !empty($header[2])) {
+        $header = array_combine($header[1], $header[2]);
+      }
     }
     return $header;
+  }
+
+  /**
+   * Pings the Mollom API to validate keys and connectivity.
+   *
+   * @param string $callback
+   *   A callback URL to receive the "pong" response from Mollom.
+   * @param string publicKey
+   *   (Optional) A public key to use.  If not provided, the current class's
+   *   publicKey will be used.
+   *
+   * @return int
+   *   The status code returned from the server.
+   */
+  public function ping($callback, $publicKey = NULL) {
+    if (!isset($publicKey)) {
+      $publicKey = $this->publicKey;
+    }
+    $publicKey = rawurlencode($publicKey);
+    $result = $this->query('POST', 'site/' . $publicKey . '/ping', array('url' => $callback));
+    return $result;
   }
 
   /**
@@ -1146,6 +1175,10 @@ abstract class Mollom {
    *   - contextTitle: The title of the parent/context content of the stored
    *     content; e.g., the title of the article or forum thread a comment is
    *     posted on (not the parent comment that was replied to).
+   *   - contextCreated: The creation date of the parent/context content of the
+   *     stored content as a unix timestamp in seconds; e.g., the creation date
+   *     of the article or forum thread a comment is posted on (not the parent
+   *     comment that was replied to).
    *   - trackingImageId: An optional string identifier used to request an
    *     image beacon.  This is used for form behavior analysis.
    *
@@ -1282,6 +1315,10 @@ abstract class Mollom {
    *     - profanity: The content contains obscene, violent, profane language.
    *     - quality: The content is of low quality.
    *     - unwanted: The content is unwanted, taunting, off-topic.
+   *  - type (optional): A string denoting the type of feedback submitted.
+   *     - moderate: Feedback from the admin moderation process (default).
+   *     - flag: feedback from end users flagging content as inappropriate
+   *   - source (optional): A string denoting the user-interface source of the feedback.
    *   and at least one of:
    *   - contentId: A Mollom content ID associated with the content.
    *   - captchaId: A Mollom CAPTCHA ID associated with the content.

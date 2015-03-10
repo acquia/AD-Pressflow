@@ -69,6 +69,7 @@ Drupal.mollom.getMollomCaptcha = function (captchaType, context) {
   if (mollomContentId) {
     path += '/' + mollomContentId;
   }
+  path += '?cb=' + new Date().getTime();
 
   // Retrieve a new CAPTCHA.
   $.ajax({
