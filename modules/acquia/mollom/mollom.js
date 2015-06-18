@@ -81,7 +81,7 @@ Drupal.mollom.getMollomCaptcha = function (captchaType, context) {
         return;
       }
       // Inject new CAPTCHA.
-      $('.mollom-captcha-content', context).parent().html(data.content);
+      $('.mollom-captcha-content', context).parent().replaceWith(data.content);
       // Update CAPTCHA ID.
       $('input[name="mollom[captchaId]"]', context).val(data.captchaId);
       // Add an onclick-event handler for the new link.

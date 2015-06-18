@@ -17,7 +17,7 @@ define('IS_ACQUIA_DRUPAL', TRUE);
 /**
  * Acquia Drupal version information (only used if IS_ACQUIA_DRUPAL).
  */
-define('ACQUIA_DRUPAL_VERSION' , '1.2.66 (Drupal 6.35 core from Pressflow)');
+define('ACQUIA_DRUPAL_VERSION' , '1.2.67 (Drupal 6.36 core from Pressflow)');
 define('ACQUIA_DRUPAL_SERIES'  , '1.0-pressflow');
 define('ACQUIA_DRUPAL_BRANCH'  , '1.x-6.x');
-define('ACQUIA_DRUPAL_REVISION', '6243');
+define('ACQUIA_DRUPAL_REVISION', '6266');

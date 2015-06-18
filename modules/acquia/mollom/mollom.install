@@ -1130,3 +1130,22 @@ function mollom_update_6212() {
   db_add_index($ret, 'mollom', 'captcha_id', array('captcha_id'));
   return $ret;
 }
+
+/**
+ * Restrict access to the Mollom Content Moderation Platform to current users.
+ */
+function mollom_update_6213() {
+  $uses_cmp = FALSE;
+  $result = db_query('SELECT moderation from {mollom_form}');
+  if ($result !== FALSE) {
+    while ($moderation = db_result($result)) {
+      if (!empty($moderation)) {
+        $uses_cmp = TRUE;
+        break;
+      }
+    }
+  }
+  if ($uses_cmp) {
+    variable_set('mollom_cmp_enabled',TRUE);
+  }
+}

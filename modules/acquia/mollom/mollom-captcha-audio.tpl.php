@@ -120,7 +120,7 @@ $refresh_image_output = theme('image', drupal_get_path('module', 'mollom') . '/i
     </span>
 
     <!-- Text to show when neither HTML5 audio or SWFs are supported -->
-    <span id="mollom_captcha_unsupported" class="mollom-hide">
+    <span id="mollom_captcha_unsupported" style="display:none">
       <p><?php print $unsupported; ?></p>
     </span>
 
