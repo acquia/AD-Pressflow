@@ -122,10 +122,9 @@ A: Out of the box, the Mollom module allows to protect Drupal core forms only.
 
 Q: What happened to the Mollom Content Moderation Platform?
 
-A: On Thursday, 1 October 2015, Acquia is ending support for the Content
+A: On Thursday, 1 October 2015, Acquia ended support for the Content
    Moderation Platform (CMP) feature of Mollom, which was originally added as a
-   feature in 2013.  Users who activated their CMP accounts before June 1, 2015
-   will have access until that time.
+   feature in 2013.
 
    - https://docs.acquia.com/mollom/faq/platform
 

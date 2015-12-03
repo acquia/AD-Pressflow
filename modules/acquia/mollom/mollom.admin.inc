@@ -420,45 +420,6 @@ function mollom_admin_configure_form(&$form_state, $mollom_form = NULL) {
         '#access' => !empty($mollom_form['moderation callback']),
       );
 
-      // CMP integration requires Clean URLs to be enabled, in order for the
-      // local moderation callback endpoints to work.
-      $has_clean_urls = variable_get('clean_url', FALSE);
-      $cmp_enabled = mollom_cmp_enabled();
-      if ($cmp_enabled) {
-        $form['mollom']['moderation'] = array(
-          '#type' => 'checkbox',
-          '#title' => t('Allow content to be moderated from the <a href="@moderation-url">@moderation-product</a>', array(
-            '@moderation-url' => 'https://www.mollom.com/moderation',
-            '@moderation-product' => 'Mollom Content Moderation Platform',
-          )),
-          '#default_value' => (string) (int) ($mollom_form['moderation'] && $has_clean_urls),
-          '#disabled' => !$has_clean_urls,
-          // Only possible for forms which result in a locally stored entity.
-          '#access' => !empty($mollom_form['entity']),
-          '#description' => t('On %date, Acquia is ending support for the %moderation-product feature of Mollom', array(
-            '%date' => format_date(MOLLOM_CMP_RETIRE_DATE, 'custom', 'l, F j, Y'),
-            '%moderation-product' => 'Content Moderation Platform',
-          )),
-        );
-        if (!$has_clean_urls) {
-          $form['mollom']['moderation']['#description'] .= '<br />' . t('Requires <a href="@clean-urls">Clean URLs</a> to be enabled.', array(
-              '@clean-urls' => url('admin/config/search/clean-urls'),
-            ));
-        }
-        else {
-          $form['mollom']['moderation']['#description'] .= '<br />' . t('Note: All content that was created while this option was disabled cannot be moderated from the @moderation-product; only new content will appear.', array(
-              '@moderation-product' => 'Mollom Content Moderation Platform',
-            ));
-        }
-      }
-      else {
-        // CMP access is not enabled.
-        $form['mollom']['moderation'] = array(
-          '#type' => 'value',
-          '#value' => 0,
-        );
-      }
-
       $form['actions']['submit'] = array(
         '#type' => 'submit',
         '#value' => t('Save'),
@@ -878,23 +839,6 @@ function mollom_admin_settings(&$form_state) {
     '#element_validate' => array('mollom_admin_settings_validate_key'),
     '#description' => t('Used for authentication. Similar to a password, the private key should not be shared with anyone.'),
   );
-  $ping_response = isset($form_state['storage']['mollom_ping']) ? $form_state['storage']['mollom_ping'] : '';
-  $form['access-keys']['ping_holder'] = array(
-    '#type' => 'fieldset',
-    '#title' => t('Test connection'),
-    'ping_action' => array(
-      '#type' => 'submit',
-      '#value' => t('Begin test'),
-      '#submit' => array('mollom_admin_ping_submit'),
-    ),
-    'help' => array(
-      '#value' => '<div class="description">' . t('Test if your site can reach Mollom and if the Mollom service can reach your site.') . '</div>',
-    ),
-    'ping_response' => array(
-      '#value' => '<div>' . $ping_response . '</div>',
-    ),
-  );
-
   $form['mollom_fallback'] = array(
     '#type' => 'radios',
     '#title' => t('When the Mollom service is unavailable'),
@@ -1125,73 +1069,6 @@ function mollom_node_admin_overview_submit($form, &$form_state) {
       drupal_set_message(t('The selected posts have been reported as inappropriate and are unpublished.'));
     }
   }
-}
-
-/**
- * Form submit handler for the ping button.
- */
-function mollom_admin_ping_submit($form, &$form_state) {
-  $mollom = mollom();
-  $response = $mollom->pingAPI($form_state['values']['mollom_public_key'], $form_state['values']['mollom_private_key']);
-  $code = isset($response['code']) ? $response['code'] : $response;
-  if (drupal_strlen($code)) {
-    if ($code == '200') {
-      $log_message = t('<strong>Mollom connection test succeeded.</strong> Please check your <a href="!log_url">Recent log messages</a> for the Mollom response.', array(
-        '!log_url' => url('admin/reports/dblog'),
-      ));
-    }
-    else {
-      $log_message = t('<strong>Test connection failure.</strong> Mollom API response: Status @response.  Please check your <a href="!log_url">Recent log messages</a> for more details about the Mollom service response.', array(
-        '@response' => $code,
-        '!log_url' => url('admin/reports/dblog'),
-      ));
-      $causes = array();
-      switch ($code) {
-        case '404':
-        case '500':
-          $causes[] = t('The Mollom endpoint is incorrectly configured.');
-          break;
-        case '403':
-          $causes[] = t('The time on your server is invalid.');
-          $causes[] = t('The Mollom keys are incorrect.');
-          break;
-        case '900':
-          $causes[] = t('Your site is not publically accessible possibly due to firewall restrictions or local hosting.');
-          break;
-      }
-      $causes[] = t('The Mollom service is unavailable. <a href="!check_url">Check service status.</a>', array(
-        '!check_url' => 'https://status.acquia.com',
-      ));
-      $log_message .= theme('item_list', $causes, t('Possible causes:'));
-    }
-  }
-  else {
-    $log_message = t('<strong>Mollom connection test succeeded.</strong> Please check your <a href="!log_url">Recent log messages</a> for the Mollom response.', array(
-      '!log_url' => url('admin/reports/dblog'),
-    ));
-  }
-  $form_state['storage']['mollom_ping'] = $form['access-keys']['ping_holder']['mollom_ping_replace']['response']['#markup'] = $log_message;
-}
-
-/**
- * Callback for Mollom API pong return.
- *
- * NOTE:  This function does not have any access restrictions due to the nature
- * of an API callback.  Therefore, no additional work should be performed here.
- */
-function mollom_admin_pong_callback() {
-  if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    mollom_log(array(
-      'message' => 'Mollom API pong called using invalid request method',
-    ), WATCHDOG_ERROR);
-    return MENU_NOT_FOUND;
-  }
-  mollom_log(array(
-    'message' => 'Mollom API: pong',
-  ), WATCHDOG_INFO);
-  // Return empty content so that Mollom receives an appropriate HTTP status
-  // code.
-  return array();
 }
 
 /**

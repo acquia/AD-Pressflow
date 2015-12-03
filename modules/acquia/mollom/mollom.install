@@ -1148,4 +1148,14 @@ function mollom_update_6213() {
   if ($uses_cmp) {
     variable_set('mollom_cmp_enabled',TRUE);
   }
+  return array();
+}
+
+
+/**
+ * Remove Mollom Content Moderation Platform variables.
+ */
+function mollom_update_6214() {
+  variable_del('mollom_cmp_enabled');
+  return array();
 }
