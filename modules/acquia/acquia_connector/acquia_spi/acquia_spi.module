@@ -1286,7 +1286,7 @@ function acquia_spi_get_platform() {
     'system_type'       => php_uname('s'),
     // php_uname() only accepts one character, so we need to concatenate ourselves.
     'system_version'    => php_uname('r') .' '. php_uname('v') .' '. php_uname('m') .' '. php_uname('n'),
-    'mysql'             => ($database_type == 'mysql') ? acquia_spi_get_platform_mysql_data() : array(),
+    'mysql'             => in_array($database_type, array('mysql', 'mysqli')) ? acquia_spi_get_platform_mysql_data() : array(),
   );
 
   // Never send NULL (or FALSE?) - that causes hmac errors.

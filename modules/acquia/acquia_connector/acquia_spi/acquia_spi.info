@@ -5,11 +5,11 @@ php = 5.2
 core = 6.x
 dependencies[] = acquia_agent
 
-; Information added by Drupal.org packaging script on 2014-11-13
-version = "6.x-2.16"
+; Information added by Drupal.org packaging script on 2015-12-10
+version = "6.x-2.17"
 core = "6.x"
 project = "acquia_connector"
-datestamp = "1415907501"
+datestamp = "1449776345"
 
 
 ; Information added by Acquia.com packaging script
